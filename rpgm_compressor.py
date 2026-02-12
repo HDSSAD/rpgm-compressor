@@ -504,8 +504,8 @@ def replace_originals(original_folder: Path, compressed_folder: Path):
     
     # Mostrar espacio en disco ahorrado
     print(f"Tamaño de archivos de medios originales: {round(cumulative_size_total/1000000)}MB")
-    print(f"Tamaño de archivos de medios comprimidos: {round(cumulative_size_saved/1000000)}MB")
-    print(f"Al reemplazar los originales se ha ahorrado en total: {round(cumulative_size_total-cumulative_size_saved)/1000000}MB")
+    print(f"Tamaño de archivos de medios comprimidos: {round((cumulative_size_total-cumulative_size_saved)/1000000)}MB")
+    print(f"Al reemplazar los originales se ha ahorrado en total: {round(cumulative_size_saved)/1000000}MB")
 # END function replace_originals()
 
 def chose_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tuple[str, list[str]]:
@@ -563,6 +563,7 @@ audio_ext, image_ext, useless_ext, encrypted_ext, nwjs_files, nwjs_folders = det
 # (Prioridad alta) Agregar opción para detección de archivos cifrados y obtener key de project_folder/data/system.json
 # Agregar opción para desencriptar archivos cifrados usando la key obtenida
 # Agregar opción para reencriptar archivos desencriptados usando la key obtenida
+# Agregar opción para cambiar "hasEncryptedImages":true a false una vez desencriptado los archivos (y su versión de audio correspondiente)
 # Agregar opción para abrir herramientas de desencriptación y compresión de terceros
 #       https://github.com/uuksu/RPGMakerDecrypter
 #       RMDec, UAGC, Enigma unpacker, etc
