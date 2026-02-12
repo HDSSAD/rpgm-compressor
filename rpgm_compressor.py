@@ -1,14 +1,26 @@
-import os, sys, subprocess, shutil, json
+import os, sys, subprocess, shutil, json, ctypes
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 import tkinter as tk
 from tkinter import filedialog
 from functools import partial
-
+    
 def clear_screen():
     cmd = 'cls' if os.name == 'nt' else 'clear'
     subprocess.run(cmd, shell=True, check=False)
 clear_screen()
+
+# llamado a función comentado en variables globales
+def require_admin():
+    if ctypes.windll.shell32.IsUserAnAdmin():
+        print("Ejecutando con privilegios de administrador")
+    else:
+        # Re-ejecutar el script con derechos de administrador
+        ctypes.windll.shell32.ShellExecuteW(
+            None, "runas", sys.executable, f'"{__file__}"', None, 1
+        )
+        sys.exit()
+# END of function require_admin()
 
 def check_environment() -> tuple[bool, bool, bool]:
     # Comprobar cwebp en variables de entorno para procesamiento de imágenes
@@ -62,7 +74,7 @@ def check_folders() -> tuple[Path, Path, Path, Path]:
             print("[X] Cerrando aplicación...")
             sys.exit()
 
-    print(f"Carpeta {project_folder} seleccionada como carpeta del proyecto")
+    print(f"[+] Carpeta del Proyecto: {project_folder}")
 
     # Detectando carpeta de medios predeterminadas
     if (project_folder / "www").exists():
@@ -167,13 +179,22 @@ def detection_filters():
                     ".rpgmzp", ".rpgmzm", ".rpgmzo",   # RPGM MZ
                     "ogg_", "m4a_", "wav_", "mp3_",    # Otros posibles archivos de audio cifrados
                     "jpg_", "jpeg_", "png_", "webp_")  # Otros posibles archivos de imagen cifrados
+
+    
+    
+    
+    
+    
+    
     nwjs_files = ("credits.html", "d3dcompiler_47.dll",
                 "ffmpeg.dll", "icudtl.dat", 
                 "libEGL.dll", "libGLESv2.dll", 
-                "node.dll nw.dll", "nw_100_percent.pak", 
-                "nw_200_percent.pak", "nw_elf.dll", 
-                "resources.pak", "debug.log",
-                "natives_blob.bin", "snapshot_blob.bin")
+                "node.dll", "nw.dll",
+                "nw_100_percent.pak", "nw_200_percent.pak", 
+                "nw_elf.dll", "resources.pak", 
+                "debug.log", "natives_blob.bin", 
+                "snapshot_blob.bin", "v8_context_snapshot.bin",
+                "notification_helper.exe")
     nwjs_folders = ("locales", "swiftshader")
     return audio_ext, image_ext, useless_ext, encrypted_ext, nwjs_files, nwjs_folders
 # END of function detection_filters()
@@ -181,11 +202,23 @@ def detection_filters():
 def remove_folder_contents(folder: Path):
     for root, dirs, files in folder.walk():
         for file in files:
+            file_path = (root/file)
             try:
-                (root/file).unlink()
-                print(f"Eliminado: {file} de: {root.relative_to(Path(project_folder).parent)}")
-            except:
-                print(f"No se eliminó {file}. Comprobar manualmente: {(root/file).parent}")
+                file_path.unlink()
+                print(f"Eliminado: {file} de: {root.relative_to(Path(folder).parent)}")
+            except PermissionError:
+                if file_path.exists():
+                    command_delete_cmd = [
+                        "cmd", "/c", "del", "/f", "/q", f"{file_path}"
+                    ]
+                    result = subprocess.run(command_delete_cmd, shell=True)
+                print(f"(CMD) Eliminado: {file} de: {root.relative_to(Path(folder).parent)}")
+            except subprocess.CalledProcessError as e:
+                print(f"[X] No se eliminó {file} con comando del.")
+                print(f"  Comprobar manualmente: {(file_path).parent}")
+            except Exception as e:
+                print(f"[X] No se eliminó {file}. Comprobar manualmente: {(file_path).parent}")
+                print(f"  Detalles del error: {e}")
         # end for files
     # end for walk
 # END of function remove_folder_contents()
@@ -196,20 +229,20 @@ def delete_tree_folder(folder: Path):
         for file in files:
             try:
                 (root/file).unlink()
-                print(f"Eliminado: {file} de: {root.relative_to(Path(project_folder).parent)}")
+                print(f"Eliminado: {file} de: {root.relative_to(Path(folder).parent)}")
             except:
                 print(f"No se eliminó {file}. Comprobar manualmente: {(root/file).parent}")
         # end for files
         for dir in dirs:
             try:
                 (root/dir).rmdir()
-                print(f"Eliminada carpeta vacía: {(root/dir).relative_to(Path(project_folder).parent)}")
+                print(f"Eliminada carpeta vacía: {(root/dir).relative_to(Path(folder).parent)}")
             except:
                 print(f"No se eliminó la carpeta vacía {dir}. Comprobar manualmente: {(root/dir).parent}")
         # end for dirs
     # end for walk
     folder.rmdir()
-    print(f"Eliminada carpeta: {folder.relative_to(Path(project_folder).parent)}")
+    print(f"Eliminada carpeta: {folder.relative_to(Path(folder).parent)}")
 # END of function delete_tree_folder()
 
 def remove_files_from_list(folder: Path, files_to_remove: tuple):
@@ -220,7 +253,7 @@ def remove_files_from_list(folder: Path, files_to_remove: tuple):
                 file_parent = file_path.parent
                 try:
                     file_path.unlink()
-                    print(f"Eliminado: {file} de: {file_parent.relative_to(Path(project_folder).parent)}")
+                    print(f"Eliminado: {file} de: {file_parent.relative_to(Path(folder).parent)}")
                 except:
                     print(f"No se eliminó {file}. Comprobar manualmente: {file_path.parent}")
                 # end try
@@ -283,9 +316,6 @@ def setup_nwjs_game_launcher(project_folder: Path):
         if package_data.get("window").get("position") != "center":
             package_data["window"]["position"] = "center"
             json_changed = True
-        if "--expose-gc" not in package_data.get("js-flags", ""):
-            package_data["js-flags"] = (package_data.get("js-flags", "") + " --expose-gc").strip()
-            json_changed = True
         if json_changed:
             shutil.copy(package_json_path, package_json_path.with_suffix(".backup.json"))
             with package_json_path.open("w", encoding="utf-8") as package_file:
@@ -320,7 +350,7 @@ def compress_audio(paths: list):
         "ffprobe", "-v", "error", "-select_streams", "a:0",
         "-show_entries", "stream=sample_rate",
         "-of", "default=noprint_wrappers=1:nokey=1",
-        str(source)
+        f"{source}"
     ]
     try:
         result = subprocess.run(command_probe, capture_output=True, text=True)
@@ -337,22 +367,22 @@ def compress_audio(paths: list):
         # Configuración para archivos de 22kHz con calidad 0
         command_mpeg = [
                     "ffmpeg", "-hide_banner", "-loglevel", "error",
-                    "-i", str(source),
+                    "-i", f"{source}",
                     "-c:a", "libvorbis", 
                     "-ar", "22050", 
                     "-q:a", "0", 
-                    "-y", str(output)
+                    "-y", f"{output}"
                 ]
         compressed_hz = 22050
     elif hz >= 32000:
         # Configuración para archivos de 32kHz con calidad 0
         command_mpeg = [
                     "ffmpeg", "-hide_banner", "-loglevel", "error",
-                    "-i", str(source),
+                    "-i", f"{source}",
                     "-c:a", "libvorbis", 
                     "-ar", "32000", 
                     "-q:a", "0", 
-                    "-y", str(output)
+                    "-y", f"{output}"
                 ]
         compressed_hz = 32000
     else:
@@ -391,9 +421,9 @@ def compress_image(cwebp_flags: list, paths: list):
     source, output = paths
     command_cwebp = cwebp_flags.copy()
     # cwebp_flags ya incluye el comando 'cwebp' al inicio, por lo que solo agregamos los argumentos específicos del archivo
-    command_cwebp.append(str(source))
+    command_cwebp.append(f"{source}")
     command_cwebp.append("-o")
-    command_cwebp.append(str(output))
+    command_cwebp.append(f"{output}")
 
     # Si el comando cwebp tiene más de un elemento (es decir, si se ha configurado correctamente), lo ejecutamos
     if len(command_cwebp) > 0:
@@ -442,8 +472,9 @@ def replace_originals(original_folder: Path, compressed_folder: Path):
                 # Solo reemplazamos el archivo original si el comprimido es más pequeño que el original
                 # y si el archivo comprimido no está vacío (corrupto)
                 if 0 < compressed_file.stat().st_size < original_file.stat().st_size:
-                    print(f"[+] Reemplazando {file} original con versión comprimida. -{original_file_size - compressed_file_size}B")
-                    shutil.move(str(compressed_file), str(original_file))
+                    print(f"[+] Reemplazando {file}")
+                    print(f"   Ahorrado: {round((original_file_size - compressed_file_size)/1000, ndigits=2)}KB")
+                    shutil.move(f"{compressed_file}", f"{original_file}")
                     cumulative_size_saved += original_file_size - compressed_file_size
                 else:
                     # Eliminar el archivo de salida si no es más pequeño o está corrupto
@@ -508,11 +539,12 @@ def chose_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tupl
             print("Entrada inválida. Ingresa un número.")
 # END of function chose_image_profile
 
-
 ######################
 # Variables globales #
 ######################
 
+""" # Solo de ser necesario
+require_admin() """
 cwebp_available, ffapps_available, nwjs_available = check_environment()
 project_folder, media_folder, audio_folder, image_folder = check_folders()
 audio_processing_allowed, image_processing_allowed = check_allowed_functions()
@@ -524,6 +556,17 @@ audio_ext, image_ext, useless_ext, encrypted_ext, nwjs_files, nwjs_folders = det
 ##################
 # MENU PRINCIPAL #
 ##################
+
+# TODO
+# (Prioridad baja) Agregar opción para configurar flags de cwebp personalizados (para usuarios avanzados)
+# (Prioridad baja) Agregar opción para configurar flags de ffmpeg personalizados (para usuarios avanzados)
+# (Prioridad alta) Agregar opción para detección de archivos cifrados y obtener key de project_folder/data/system.json
+# Agregar opción para desencriptar archivos cifrados usando la key obtenida
+# Agregar opción para reencriptar archivos desencriptados usando la key obtenida
+# Agregar opción para abrir herramientas de desencriptación y compresión de terceros
+#       https://github.com/uuksu/RPGMakerDecrypter
+#       RMDec, UAGC, Enigma unpacker, etc
+# Agregar opción para eliminar archivos inútiles detectados (ej: .psd)
 
 while True:
     print("\n" + "="*50)
@@ -552,23 +595,24 @@ while True:
             image_profile_name, cwebp_flags = chose_image_profile(image_profile_name, cwebp_flags)
         elif option_main == 2 and image_processing_allowed:
             process_images(image_folder, image_ext, image_output, max_threads, cwebp_flags)
-            print("---Moviendo Imágenes---")
+            print("\n---Moviendo Imágenes---")
             replace_originals(image_folder, image_output)
-            input("Tarea Finalizada. Presiona Enter para continuar")
+            input("\nTarea Finalizada. Presiona Enter para continuar")
         elif option_main == 3 and audio_processing_allowed:
             process_audio(audio_folder, audio_ext, audio_output, max_threads)
-            print("----Moviendo Audio----")
+            print("\n----Moviendo Audio----")
             replace_originals(audio_folder, audio_output)
-            input("Tarea Finalizada. Presiona Enter para continuar")
+            input("\nTarea Finalizada. Presiona Enter para continuar")
         elif option_main == 4 and image_processing_allowed and audio_processing_allowed:
             process_images(image_folder, image_ext, image_output, max_threads, cwebp_flags)
             process_audio(audio_folder, audio_ext, audio_output, max_threads)
-            print("----Moviendo Media----")
-            replace_originals(media_folder, (Path(project_folder)/"compressed"))
-            input("Tarea Finalizada. Presiona Enter para continuar")
+            print("\n----Moviendo Media----")
+            replace_originals(media_folder, (Path(__file__).parent/"compressed"))
+            input("\nTarea Finalizada. Presiona Enter para continuar")
         elif option_main == 5:
             setup_nwjs_game_launcher(project_folder)
-            subprocess.Popen(str(project_folder / "nwjs_game_launch.bat"), cwd=str(project_folder))
+            subprocess.run(f"{project_folder / 'nwjs_game_launch.bat'}", cwd=f"{project_folder}")
+            print("Juego lanzado")
             # launch_nwjs_game(project_folder)  # Old launch method
         elif option_main == 6:
             remove_files_from_list(project_folder, nwjs_files)
