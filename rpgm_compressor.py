@@ -600,7 +600,8 @@ if image_profile_name: print(f"Perfil de compresión de imágenes predeterminado
 # TODO
 # (Prioridad baja) Agregar opción para configurar flags de cwebp personalizados (para usuarios avanzados)
 # (Prioridad baja) Agregar opción para configurar flags de ffmpeg personalizados (para usuarios avanzados)
-# (Prioridad alta) Agregar opción para detección de archivos cifrados y obtener key de project_folder/data/system.json
+# (Prioridad ALTA) Modificar comparación de archivos originales y comprimidos para permitir comparar archivos con diferentes extensiones
+# (Prioridad media) Agregar opción para detección de archivos cifrados y obtener key de project_folder/data/system.json
 # Agregar opción para desencriptar archivos cifrados usando la key obtenida
 # Agregar opción para reencriptar archivos desencriptados usando la key obtenida
 # Agregar opción para cambiar "hasEncryptedImages":true a false una vez desencriptado los archivos (y su versión de audio correspondiente)
