@@ -616,7 +616,7 @@ while True:
     print("="*50)
 
     print(f"1 - Seleccionar ruta del proyecto" \
-          f"    Ruta actual: {(project_folder if project_folder != Path() else "NO SELECCIONADO")}")
+          f"\n    Ruta actual: {(project_folder if project_folder != Path() else "NO SELECCIONADO")}")
     print(f"2 - Menu opciones de calidad de conversión de imágenes" \
           f"\n    Preset actual: {image_profile_name}" \
           f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not cwebp_available else ""}")
@@ -630,7 +630,7 @@ while True:
           f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not image_processing_allowed() and not audio_processing_allowed() else ""}")
     print(f"6 - Ejecutar prueba de NW.js del sistema" \
           f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not nwjs_available else ""}")
-    print(f"7 -  Limpiar NW.js local del directorio del proyecto" \
+    print(f"7 - Limpiar NW.js local del directorio del proyecto" \
           f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not nwjs_available else ""}")
     print("0 - Salir del programa")
     try:
