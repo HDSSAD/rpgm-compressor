@@ -10,8 +10,8 @@ def clear_screen():
     subprocess.run(cmd, shell=True, check=False)
 clear_screen()
 
-# llamado a función comentado en variables globales
-def require_admin():
+# Función no utilizada por ahora
+""" def require_admin():
     if ctypes.windll.shell32.IsUserAnAdmin():
         print("Ejecutando con privilegios de administrador")
     else:
@@ -19,37 +19,26 @@ def require_admin():
         ctypes.windll.shell32.ShellExecuteW(
             None, "runas", sys.executable, f'"{__file__}"', None, 1
         )
-        sys.exit()
+        sys.exit() """
 # END of function require_admin()
 
 def check_environment() -> tuple[bool, bool, bool]:
     # Comprobar cwebp en variables de entorno para procesamiento de imágenes
     if shutil.which("cwebp") is None:
-        print("[!] No se encontró cwebp en el sistema")
-        print("[!] La compresión de imágenes no estará disponible")
         cwebp_available = False
     else:
-        print("[+] Compresión de imágenes disponible")
         cwebp_available = True
 
     # Comprobar ffmpeg y ffprobe en variables de entorno para procesamiento de audio
     if shutil.which("ffmpeg") is None or shutil.which("ffprobe") is None:
-        print("[!] No se encontró ffmpeg o ffprobe en el sistema")
-        print("[!] La compresión de audio no estará disponible")
         ffapps_available = False
     else:
-        print("[+] Compresión de audio disponible")
         ffapps_available = True
 
     # Comprobar NW.js en variables de entorno para lanzamiento del juego
     if shutil.which("nw") is None:
-        print("[!] No se encontró NW.js en el sistema")
-        print("[!] Lanzar el juego con NW.js del sistema no estará disponible")
-        print("[!] Para usar NW.js del sistema, por favor descarga NW.js desde https://nwjs.io/ " \
-        "y asegúrate de que el ejecutable 'nw' esté en tu PATH del sistema")
         nwjs_available = False
     else:
-        print("[+] NW.js detectado en el sistema")
         nwjs_available = True
     
     if not cwebp_available and not ffapps_available and not nwjs_available:
@@ -60,98 +49,77 @@ def check_environment() -> tuple[bool, bool, bool]:
     return cwebp_available, ffapps_available, nwjs_available
 
 
-def check_folders() -> tuple[Path, Path, Path, Path]:
+def folder_selection(folder_type: str) -> Path:
+    tk_root = tk.Tk()
+    tk_root.withdraw()
+    selected_folder = Path(filedialog.askdirectory(title=f"Selecciona la carpeta de {folder_type} o cancela para omitir"))
+    tk_root.destroy()
+    return selected_folder
+
+def subfolder_of(subfolder:Path, parent_folder:Path):
+    relative_subfolder = subfolder.relative_to(parent_folder)
+    if (parent_folder/relative_subfolder).exists() and parent_folder != parent_folder/relative_subfolder:
+        return True
+    else:
+        return False
+        
+def select_default_folders(project_folder:Path = Path(), audio_folder:Path = Path(), image_folder:Path = Path()) -> tuple[Path, Path, Path]:
     # OBLIGATORIO Seleccionar carpeta de proyecto
-    if len(sys.argv) > 1 and Path(sys.argv[1]).exists():
-        project_folder = Path(sys.argv[1])
+    temp_project_folder = folder_selection("Proyecto")
+    if temp_project_folder == Path():
+        print("[X] No se ha seleccionado carpeta de proyecto")
+        # Si cancelamos, las varaibles no se actualizan
+        return project_folder, audio_folder, image_folder
+    
+    project_folder = temp_project_folder
+    # Detección de ruta de audio
+    if Path(project_folder/"audio").exists():
+        audio_folder = project_folder / "audio"
+    elif Path(project_folder/"www/audio").exists():
+        audio_folder = project_folder / "www/audio"
     else:
-        tk_root = tk.Tk()
-        tk_root.withdraw()
-        project_folder = Path(filedialog.askdirectory(title="Selecciona la carpeta del proyecto"))
-        tk_root.destroy()
-        if project_folder == Path():
-            print("[X] El script no puede continuar sin seleccionar carpeta de proyecto")
-            print("[X] Cerrando aplicación...")
-            sys.exit()
+        audio_folder = folder_selection("Audio")  # Forzar selección manual si no se detectan carpetas predeterminadas
+        if not subfolder_of(audio_folder, project_folder):
+            audio_folder = Path()
 
-    print(f"[+] Carpeta del Proyecto: {project_folder}")
-
-    # Detectando carpeta de medios predeterminadas
-    if (project_folder / "www").exists():
-        media_folder = project_folder / "www"
+    # Detección de ruta de imágenes
+    if Path(project_folder/"img").exists():
+        image_folder = project_folder / "img"
+    elif Path(project_folder/"www/img").exists():
+        image_folder = project_folder / "www/img"
     else:
-        media_folder = project_folder
+        image_folder = folder_selection("Imagenes")  # Forzar selección manual si no se detectan carpetas predeterminadas
+        if not subfolder_of(image_folder, project_folder):
+            image_folder = Path()
 
-    audio_folder = media_folder / "audio"
-    image_folder = media_folder / "img"
-
-    # Seleccionar carpeta de audio manualmente si no se detectan las predeterminadas
-    if not audio_folder.exists():
-        tk_root = tk.Tk()
-        tk_root.withdraw()
-        print("No se detectó carpeta de Audio.")
-        audio_folder = Path(filedialog.askdirectory(title="Selecciona la carpeta de Audio o cancela para omitir"))
-        tk_root.destroy()
-        if audio_folder == Path():
-            audio_folder_selected = False
-        else:
-            audio_folder_selected = True
-            print(f"[+] Carpeta de Audio seleccionada: {audio_folder}")
-    else:
-        audio_folder_selected = True
-
-    # Seleccionar carpeta de imágenes manualmente si no se detectan las predeterminadas
-    if not image_folder.exists():
-        tk_root = tk.Tk()
-        tk_root.withdraw()
-        print("No se detectó carpeta de Imágenes.")
-        image_folder = Path(filedialog.askdirectory(title="Selecciona la carpeta de Imágenes o cancela para omitir"))
-        tk_root.destroy()
-        if image_folder == Path():
-            image_folder_selected = False
-        else:
-            image_folder_selected = True
-            print(f"[+] Carpeta de Imágenes seleccionada: {image_folder}")
-    else:
-        image_folder_selected = True
-
-    # OBLIGATORIO Debe existir al menos una carpeta de medios
-    if not audio_folder_selected and not image_folder_selected:
-        print("[X] No se ha detectado ninguna carpeta de medios, el script no puede continuar")
-        input("[X] Presione Enter para salir...")
-        sys.exit()
-
-    return project_folder, media_folder, audio_folder, image_folder
+    # Return devuelve rutas correctas o Path()
+    return project_folder, audio_folder, image_folder
 # END of function check_folders()
 
-# Definimos carpeta de salida para audio
-def check_allowed_functions() -> tuple[bool, bool]:
-    if ffapps_available and audio_folder.exists():
-        print(f"[+] Carpeta de audios detectada en {audio_folder}")
-        audio_processing_allowed = True
-    else:
-        print("[!] No se ha detectado carpeta de Audio")
-        audio_processing_allowed = False
 
-    # Definimos carpeta de salida para imagenes
-    if cwebp_available and image_folder.exists():
-        print(f"[+] Carpeta de imágenes detectada en {image_folder}")
-        image_processing_allowed = True
+def audio_processing_allowed() -> bool:
+    if ffapps_available and subfolder_of(audio_folder, project_folder):
+        return True
     else:
-        print("[!] No se ha detectado carpeta de imágenes")
-        image_processing_allowed = False
-    
-    return audio_processing_allowed, image_processing_allowed
+        return False
+
+def image_processing_allowed() -> bool:
+    if cwebp_available and subfolder_of(image_folder, project_folder):
+        return True
+    else:
+        return False
 # END of function check_allowed_functions()
 
-def set_folders_output() -> tuple[Path, Path]:
-    audio_output = Path(__file__).parent / "compressed/audio"
-    image_output = Path(__file__).parent / "compressed/img"
-    return audio_output, image_output
-# END of function set_folders_output()
+def set_output_folder(project_folder:Path, subfolder:Path) -> Path:
+    compressed_folder = Path(__file__).parent / "compressed"
+    media_output = compressed_folder / subfolder.relative_to(project_folder)
+    # Crear carpetas de salida si no existen
+    media_output.mkdir(parents=True, exist_ok=True)
+    return media_output
+# END of function set_output_folder()
 
 # Cantidad de procesos máximos para compresión de medios
-def check_cpu_cores() -> int:
+def set_cpu_threads() -> int:
     cpu_cores = os.cpu_count()
     if cpu_cores is None:
         max_threads = 2
@@ -161,7 +129,7 @@ def check_cpu_cores() -> int:
         max_threads = max(1, min(cpu_cores - 1, 6))
     print(f"[+] Procesos de converión simultáneos: {max_threads}")
     return max_threads
-# END of function check_cpu_cores()
+# END of function set_cpu_threads()
 
 # Perfil de compresión de imágenes predeterminado (puede ser cambiado en el menú principal)
 def default_image_profile() -> tuple[str, list[str]]:
@@ -194,7 +162,8 @@ def detection_filters():
                 "nw_elf.dll", "resources.pak", 
                 "debug.log", "natives_blob.bin", 
                 "snapshot_blob.bin", "v8_context_snapshot.bin",
-                "notification_helper.exe")
+                "notification_helper.exe", "vulkan-1.dll",
+                "vk_swiftshader_icd.json", "vk_swiftshader.dll")
     nwjs_folders = ("locales", "swiftshader")
     return audio_ext, image_ext, useless_ext, encrypted_ext, nwjs_files, nwjs_folders
 # END of function detection_filters()
@@ -458,14 +427,14 @@ def process_images(image_folder: Path, image_ext: tuple, image_output: Path, max
             )
 # END of image processing block
 
-def replace_originals(original_folder: Path, compressed_folder: Path):
+def replace_originals(proyect_folder: Path, compressed_folder: Path):
     cumulative_size_saved :int = 0
     cumulative_size_total :int = 0
     for root, dirs, files in compressed_folder.walk():
         for file in files:
             compressed_file = Path(root) / file
             compressed_file_size = compressed_file.stat().st_size
-            original_file = original_folder / compressed_file.relative_to(compressed_folder)
+            original_file = proyect_folder / compressed_file.relative_to(compressed_folder)
             original_file_size = original_file.stat().st_size
             cumulative_size_total += original_file_size
             if original_file.exists():
@@ -495,20 +464,70 @@ def replace_originals(original_folder: Path, compressed_folder: Path):
         for root, dirs, files in compressed_folder.walk(top_down=False):
             for dir in dirs:
                 (root/dir).rmdir()
-    except:
+    except OSError as e:
         # La carpeta no está vacía, no se puede eliminar
         print(f"[X] No se pudo eliminar {compressed_folder} porque no está vacio")
         print(f"[!] Verifica los archivos en las siguientes carpetas manualmente:")
         print(f"     {compressed_folder}")
-        print(f"     {original_folder}")
+        print(f"Detalles del error: {e}")
     
     # Mostrar espacio en disco ahorrado
-    print(f"Tamaño de archivos de medios originales: {round(cumulative_size_total/1000000)}MB")
-    print(f"Tamaño de archivos de medios comprimidos: {round((cumulative_size_total-cumulative_size_saved)/1000000)}MB")
-    print(f"Al reemplazar los originales se ha ahorrado en total: {round(cumulative_size_saved)/1000000}MB")
+    print(f"Tamaño de archivos de medios originales: {round(cumulative_size_total/1000000, 2)}MB")
+    print(f"Tamaño de archivos de medios comprimidos: {round((cumulative_size_total-cumulative_size_saved)/1000000, 2)}MB")
+    print(f"Al reemplazar los originales se ha ahorrado en total: {round(cumulative_size_saved/1000000, 2)}MB")
 # END function replace_originals()
 
-def chose_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tuple[str, list[str]]:
+
+def menu_select_project_folder(project_folder:Path, audio_folder:Path, image_folder:Path):
+    while True:
+        print("")
+        print("\n" + "="*50)
+        print("     SELECCIÓN DE RUTA DEL PROYECTO")
+        print("="*50)
+
+        print("1 - Seleccionar carpeta del proyecto, audio, e imágenes")
+        print(f"Carpeta del proyecto actual:\n" \
+              f"    {project_folder if not project_folder == Path() else "Ruta Inválida"}")
+        print("2 - Seleccionar carpeta de audio")
+        print(f"Carpeta de Audio actual:\n" \
+              f"    {audio_folder if not audio_folder == Path() else "Ruta Inválida"}")
+        print("3 - Seleccionar carpeta de imágenes")
+        print(f"Carpeta de Imágenes actual:\n" \
+              f"    {image_folder if not image_folder == Path() else "Ruta Inválida"}")
+        print("="*50)
+
+        try:
+            option_folder = input("Elige una opción (1-3) o 0 para volver al menú principal: ").strip()
+            option_folder = int(option_folder)
+            if option_folder in [1,2,3,0]:
+                if option_folder == 0:
+                    if project_folder != Path():
+                        return project_folder, audio_folder, image_folder
+                elif option_folder == 1:
+                    project_folder, audio_folder, image_folder = select_default_folders(project_folder, audio_folder, image_folder)
+                elif option_folder == 2:
+                    temp_audio_folder = folder_selection("Audio")
+                    if subfolder_of(temp_audio_folder, project_folder):
+                        audio_folder = temp_audio_folder
+                    else:
+                        print(f"[!] Ruta de Audio no se encuentra dentro de {project_folder}")
+                        audio_folder = Path()
+                elif option_folder == 3:
+                    temp_image_folder = folder_selection("Image")
+                    if subfolder_of(temp_image_folder, project_folder):
+                        image_folder = temp_image_folder
+                    else:
+                        print(f"[!] Ruta de Imagenes no se encuentra dentro de {project_folder}")
+                        image_folder = Path()
+            else:
+                print("Por favor, elige un número entre 0 y 3.")
+        except ValueError as e:
+            print("Entrada inválida. Ingresa un número.")
+        # end try
+
+        
+
+def menu_chose_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tuple[str, list[str]]:
     cwebp_profiles = {  # indice del perfil : (nombre del perfil, lista de flags para cwebp)
         1: ("PERFORMANCE", ['cwebp', '-q', '80', '-alpha_q', '100', '-exact', '-f', '30', '-af', '-quiet']),
         2: ("MEDIUM", ['cwebp', '-near_lossless', '75', '-alpha_q', '100', '-exact', '-m', '6', '-mt', '-quiet']),
@@ -543,15 +562,36 @@ def chose_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tupl
 # Variables globales #
 ######################
 
+
 """ # Solo de ser necesario
 require_admin() """
 cwebp_available, ffapps_available, nwjs_available = check_environment()
-project_folder, media_folder, audio_folder, image_folder = check_folders()
-audio_processing_allowed, image_processing_allowed = check_allowed_functions()
-audio_output, image_output = set_folders_output()
+project_folder, audio_folder, image_folder = select_default_folders()
 image_profile_name, cwebp_flags = default_image_profile()
-max_threads = check_cpu_cores()
+max_threads = set_cpu_threads()
 audio_ext, image_ext, useless_ext, encrypted_ext, nwjs_files, nwjs_folders = detection_filters()
+
+
+if cwebp_available: print("cwebp encontrado. Procesamiento de imágenes disponible")
+else: 
+    print("[!] No se encontró cwebp en el sistema")
+    print("[!] La compresión de imágenes no estará disponible")
+if ffapps_available: print("ffmpeg y ffprobe encontrados. Procesamiento de audio disponible")
+else:
+    print("[!] No se encontró ffmpeg o ffprobe en el sistema")
+    print("[!] La compresión de audio no estará disponible")
+if nwjs_available: print("nwjs encontrado. instalación de game launcher disponible")
+else:
+    print("[!] No se encontró NW.js en el sistema")
+    print("[!] Lanzar el juego con NW.js del sistema no estará disponible")
+    print("[!] Para usar NW.js del sistema, por favor descarga NW.js desde https://nwjs.io/ " \
+    "y asegúrate de que el ejecutable 'nw' esté en tu PATH del sistema")
+    
+if project_folder.exists(): print(f"Carpeta de proyecto: {project_folder}")
+if audio_folder.exists(): print(f"Carpeta de audio: {audio_folder}")
+if image_folder.exists(): print(f"Carpeta de imágenes: {image_folder}")
+if max_threads: print(f"Procesamiento de medios simultáneos: {max_threads}")
+if image_profile_name: print(f"Perfil de compresión de imágenes predeterminado: {image_profile_name}")
 
 ##################
 # MENU PRINCIPAL #
@@ -569,63 +609,73 @@ audio_ext, image_ext, useless_ext, encrypted_ext, nwjs_files, nwjs_folders = det
 #       RMDec, UAGC, Enigma unpacker, etc
 # Agregar opción para eliminar archivos inútiles detectados (ej: .psd)
 
+
 while True:
     print("\n" + "="*50)
     print("     MENU PRINCIPAL - COMPRESION DE MEDIOS")
     print("="*50)
 
-    print("1 -", f" [X] NO DISPONIBLE" if not image_processing_allowed else "",\
-          f"Configurar calidad de imagen (Actual: {image_profile_name})")
-    print("2 -", f" [X] NO DISPONIBLE" if not image_processing_allowed else "",\
-          "Iniciar compresión de imágenes")
-    print("3 -", f" [X] NO DISPONIBLE" if not audio_processing_allowed else "",\
-          "Iniciar compresión de audio")
-    print("4 -", f" [X] NO DISPONIBLE" if not image_processing_allowed and not audio_processing_allowed else "",\
-        "Iniciar compresión de audio e imágenes")
-    print("5 -", f" [X] NO DISPONIBLE" if not nwjs_available else "",\
-           "Configurar e iniciar juego con NW.js del sistema")
-    print("6 -", f" [X] NO DISPONIBLE" if not nwjs_available else "",\
-           "Limpiar NW.js local del directorio del proyecto")
+    print(f"1 - Seleccionar ruta del proyecto" \
+          f"    Ruta actual: {(project_folder if project_folder != Path() else "NO SELECCIONADO")}")
+    print(f"2 - Menu opciones de calidad de conversión de imágenes" \
+          f"\n    Preset actual: {image_profile_name}" \
+          f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not cwebp_available else ""}")
+    print(f"3 - Iniciar compresión de Imágenes en: " \
+          f"{f"\n    {image_folder}" if image_folder != Path() else "[!] No seleccionada"}" \
+          f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not image_processing_allowed() else ""}")
+    print(f"4 - Iniciar compresión de audio" \
+          f"{f"\n    {audio_folder}" if audio_folder != Path() else "[!] No seleccionada"}" \
+          f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not audio_processing_allowed() else ""}")
+    print(f"5 - Iniciar compresión de imágenes y audio" \
+          f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not image_processing_allowed() and not audio_processing_allowed() else ""}")
+    print(f"6 - Ejecutar prueba de NW.js del sistema" \
+          f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not nwjs_available else ""}")
+    print(f"7 -  Limpiar NW.js local del directorio del proyecto" \
+          f"{"\n    [X] OPCIÓN NO DISPONIBLE" if not nwjs_available else ""}")
     print("0 - Salir del programa")
     try:
-        option_main = input(f"Elige una opción (0-6): ").strip()
+        option_main = input(f"Elige una opción (0-7): ").strip()
         option_main = int(option_main)
         if option_main == 0:
             break
-        elif option_main == 1 and image_processing_allowed:
-            image_profile_name, cwebp_flags = chose_image_profile(image_profile_name, cwebp_flags)
-        elif option_main == 2 and image_processing_allowed:
+        elif option_main == 1:
+            project_folder, image_folder, audio_folder = menu_select_project_folder(project_folder, audio_folder, image_folder)
+        elif option_main == 2 and image_processing_allowed():
+            image_profile_name, cwebp_flags = menu_chose_image_profile(image_profile_name, cwebp_flags)
+        elif option_main == 3 and image_processing_allowed():
+            image_output = set_output_folder(project_folder, image_folder)
             process_images(image_folder, image_ext, image_output, max_threads, cwebp_flags)
             print("\n---Moviendo Imágenes---")
             replace_originals(image_folder, image_output)
             input("\nTarea Finalizada. Presiona Enter para continuar")
-        elif option_main == 3 and audio_processing_allowed:
+        elif option_main == 4 and audio_processing_allowed():
+            audio_output = set_output_folder(project_folder, audio_folder)
             process_audio(audio_folder, audio_ext, audio_output, max_threads)
             print("\n----Moviendo Audio----")
             replace_originals(audio_folder, audio_output)
             input("\nTarea Finalizada. Presiona Enter para continuar")
-        elif option_main == 4 and image_processing_allowed and audio_processing_allowed:
+        elif option_main == 5 and image_processing_allowed() and audio_processing_allowed():
+            image_output = set_output_folder(project_folder, image_folder)
+            audio_output = set_output_folder(project_folder, audio_folder)
             process_images(image_folder, image_ext, image_output, max_threads, cwebp_flags)
             process_audio(audio_folder, audio_ext, audio_output, max_threads)
             print("\n----Moviendo Media----")
-            replace_originals(media_folder, (Path(__file__).parent/"compressed"))
+            replace_originals(project_folder, (Path(__file__).parent/"compressed"))
             input("\nTarea Finalizada. Presiona Enter para continuar")
-        elif option_main == 5:
+        elif option_main == 6:
             setup_nwjs_game_launcher(project_folder)
             subprocess.run(f"{project_folder / 'nwjs_game_launch.bat'}", cwd=f"{project_folder}")
             print("Juego lanzado")
             # launch_nwjs_game(project_folder)  # Old launch method
-        elif option_main == 6:
+        elif option_main == 7:
             remove_files_from_list(project_folder, nwjs_files)
             delete_tree_folder(project_folder/"locales")
             delete_tree_folder(project_folder/"swiftshader")
         else:
-            print("Número fuera de rango (0-6).")
+            print("Número fuera de rango (0-7).")
 
     except ValueError:
-        print(f"¡Error! Ingresaste algo que no es un número. Intentaste procesar: ")
-    except NameError as e:
-        print(f"¡Error! Parece que no se han definido algunas variables necesarias para esta opción. Detalles del error: {e}")
+        print(f"¡Error! Ingresaste algo que no es un número")
     except Exception as e:
         print(f"¡Ocurrió un error inesperado! Detalles del error: {e}")
 
