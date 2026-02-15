@@ -108,7 +108,6 @@ def image_processing_allowed() -> bool:
         return True
     else:
         return False
-# END of function check_allowed_functions()
 
 def set_output_folder(project_folder:Path, subfolder:Path) -> Path:
     compressed_folder = Path(__file__).parent / "compressed"
@@ -116,7 +115,6 @@ def set_output_folder(project_folder:Path, subfolder:Path) -> Path:
     # Crear carpetas de salida si no existen
     media_output.mkdir(parents=True, exist_ok=True)
     return media_output
-# END of function set_output_folder()
 
 # Cantidad de procesos máximos para compresión de medios
 def set_cpu_threads() -> int:
@@ -136,8 +134,6 @@ def default_image_profile() -> tuple[str, list[str]]:
     image_profile_name :str= "PERFORMANCE"
     cwebp_flags :list = ['cwebp', "-q", "80", '-alpha_q', '100', '-exact', '-f', '30', '-af', "-quiet"]
     return image_profile_name, cwebp_flags
-# END of function default_image_profile()
-
 
 def detection_filters():
     audio_ext = (".ogg", ".mp3", ".wav", ".m4a", ".flac")
@@ -147,13 +143,6 @@ def detection_filters():
                     ".rpgmzp", ".rpgmzm", ".rpgmzo",   # RPGM MZ
                     "ogg_", "m4a_", "wav_", "mp3_",    # Otros posibles archivos de audio cifrados
                     "jpg_", "jpeg_", "png_", "webp_")  # Otros posibles archivos de imagen cifrados
-
-    
-    
-    
-    
-    
-    
     nwjs_files = ("credits.html", "d3dcompiler_47.dll",
                 "ffmpeg.dll", "icudtl.dat", 
                 "libEGL.dll", "libGLESv2.dll", 
@@ -228,26 +217,6 @@ def remove_files_from_list(folder: Path, files_to_remove: tuple):
                 # end try
     # end for walk
 # END of function remove_files_from_list()
-
-""" Old launch method using subprocess directly, now replaced by nwjs_game_launch.bat for better compatibility"""
-"""
-def launch_nwjs_game(project_folder: Path):
-    nwjs_command = [
-        "nw", 
-        f"--user-data-dir={rpgm_user_profile}", 
-        "--nwapp", 
-        str(project_folder)
-    ] 
-    try:
-        subprocess.Popen(nwjs_command,
-                         cwd=str(project_folder) 
-                         #creationflags=subprocess.CREATE_NEW_CONSOLE,
-                         #shell=True
-                         )
-    except Exception as e:
-        print(f"Error al lanzar el juego: {e}")
-# END of funtion launch_nwjs_game()
-"""
 
 def setup_nwjs_game_launcher(project_folder: Path):
     local_appdata = os.getenv("LOCALAPPDATA")
@@ -367,7 +336,7 @@ def compress_audio(paths: list):
     # END Try
 # END of function compress_audio()
 
-def process_audio(audio_folder: Path, audio_ext: tuple, audio_output: Path, max_threads: int):
+def process_audio(audio_folder: Path, audio_ext: tuple, audio_output: Path, max_threads: int) -> list:
     print("----Procesando Audio----")
     audio_output.mkdir(parents=True, exist_ok=True)
     audio_files_pairs = []
@@ -384,6 +353,7 @@ def process_audio(audio_folder: Path, audio_ext: tuple, audio_output: Path, max_
     # iniciamos el procesamiento de audio en paralelo
     with ThreadPoolExecutor(max_threads) as executor:
         executor.map(compress_audio, audio_files_pairs)
+    return audio_files_pairs
 # END of audio processing block
 
 def compress_image(cwebp_flags: list, paths: list):
@@ -393,7 +363,6 @@ def compress_image(cwebp_flags: list, paths: list):
     command_cwebp.append(f"{source}")
     command_cwebp.append("-o")
     command_cwebp.append(f"{output}")
-
     # Si el comando cwebp tiene más de un elemento (es decir, si se ha configurado correctamente), lo ejecutamos
     if len(command_cwebp) > 0:
         print(f"Comprimiendo imagen: {source.name}")
@@ -405,7 +374,7 @@ def compress_image(cwebp_flags: list, paths: list):
     # END IF len comando
 # END of function compress_image()
 
-def process_images(image_folder: Path, image_ext: tuple, image_output: Path, max_threads: int, cwebp_flags: list):
+def process_images(image_folder: Path, image_ext: tuple, image_output: Path, max_threads: int, cwebp_flags: list) -> list:
     print("---Procesando Imágenes---")
     image_output.mkdir(parents=True, exist_ok=True)
     image_files_pairs = []
@@ -425,58 +394,43 @@ def process_images(image_folder: Path, image_ext: tuple, image_output: Path, max
             partial(compress_image, cwebp_flags),   # Función compress_image con argumento adicional cwebp_flags
             image_files_pairs                       # Iterable para executor
             )
-# END of image processing block
+    return image_files_pairs
+# END of function process_images()
 
-def replace_originals(proyect_folder: Path, compressed_folder: Path):
+def replace_originals(files_pairs:list):
     cumulative_size_saved :int = 0
     cumulative_size_total :int = 0
-    for root, dirs, files in compressed_folder.walk():
-        for file in files:
-            compressed_file = Path(root) / file
-            compressed_file_size = compressed_file.stat().st_size
-            original_file = proyect_folder / compressed_file.relative_to(compressed_folder)
-            original_file_size = original_file.stat().st_size
-            cumulative_size_total += original_file_size
-            if original_file.exists():
-                # Solo reemplazamos el archivo original si el comprimido es más pequeño que el original
-                # y si el archivo comprimido no está vacío (corrupto)
-                if 0 < compressed_file.stat().st_size < original_file.stat().st_size:
-                    print(f"[+] Reemplazando {file}")
-                    print(f"   Ahorrado: {round((original_file_size - compressed_file_size)/1000, ndigits=2)}KB")
-                    shutil.move(f"{compressed_file}", f"{original_file}")
-                    cumulative_size_saved += original_file_size - compressed_file_size
-                else:
-                    # Eliminar el archivo de salida si no es más pequeño o está corrupto
-                    print(f"[!] {file} en la carpeta de comprimidos resulto ser más grande. Eliminando...")
-                    compressed_file.unlink()
-            else:
-                # Mover el nuevo archivo si el original no existe (no debería no existir, pero por si acaso)
-                print(f"[!] {file} en la carpeta de comprimidos no se encontró en la carpeta original")
-                # Mejor no borramos y que el usuario lo verifiqué manualmente después
-                # No borrarlo provocará que la carpeta de comprimidos no pueda ser borrada al finalizar esta función
-                # shutil.move(str(compressed_file), str(original_file))
-            # END if file exist
-        # END FOR files
-    # END FOR walk
-    try:
-        # Intentamos borrar la carpeta de comprimidos
-        # Si ocurrió un error en el bloque anterior no se borrará
-        for root, dirs, files in compressed_folder.walk(top_down=False):
-            for dir in dirs:
-                (root/dir).rmdir()
-    except OSError as e:
-        # La carpeta no está vacía, no se puede eliminar
-        print(f"[X] No se pudo eliminar {compressed_folder} porque no está vacio")
-        print(f"[!] Verifica los archivos en las siguientes carpetas manualmente:")
-        print(f"     {compressed_folder}")
-        print(f"Detalles del error: {e}")
-    
+    for original_file, compressed_file in files_pairs:
+        original_file = Path(original_file)
+        compressed_file = Path(compressed_file)
+        if not compressed_file.exists():
+            print(f"[X] No se encontró {compressed_file}")
+            continue
+        original_file_size = original_file.stat().st_size
+        cumulative_size_total += original_file_size
+        compressed_file_size = compressed_file.stat().st_size
+        # Solo reemplazamos el archivo original si el comprimido es más pequeño que el original
+        # y si el archivo comprimido no está vacío (corrupto)
+        if 0 < compressed_file_size < original_file_size:
+            try:
+                print(f"[+] Reemplazando {original_file.name}")
+                print(f"   Ahorrado: {round((original_file_size - compressed_file_size)/1000, ndigits=2)}KB")
+                shutil.move(compressed_file, original_file)
+                cumulative_size_saved += original_file_size - compressed_file_size
+            except Exception as e:
+                raise e
+            # end try
+        else:
+            # Eliminar el archivo de salida si no es más pequeño o está corrupto
+            print(f"[!] {original_file.name} en la carpeta de comprimidos resulto ser más grande. Eliminando...")
+            compressed_file.unlink()
+        # END if file size comapration
+    # END for files pairs
     # Mostrar espacio en disco ahorrado
     print(f"Tamaño de archivos de medios originales: {round(cumulative_size_total/1000000, 2)}MB")
     print(f"Tamaño de archivos de medios comprimidos: {round((cumulative_size_total-cumulative_size_saved)/1000000, 2)}MB")
     print(f"Al reemplazar los originales se ha ahorrado en total: {round(cumulative_size_saved/1000000, 2)}MB")
-# END function replace_originals()
-
+# END of function replace_originals
 
 def menu_select_project_folder(project_folder:Path, audio_folder:Path, image_folder:Path):
     while True:
@@ -524,8 +478,7 @@ def menu_select_project_folder(project_folder:Path, audio_folder:Path, image_fol
         except ValueError as e:
             print("Entrada inválida. Ingresa un número.")
         # end try
-
-        
+# END of function menu_select_project_folder()        
 
 def menu_chose_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tuple[str, list[str]]:
     cwebp_profiles = {  # indice del perfil : (nombre del perfil, lista de flags para cwebp)
@@ -558,10 +511,10 @@ def menu_chose_image_profile(image_profile_name: str, cwebp_flags: list[str]) ->
             print("Entrada inválida. Ingresa un número.")
 # END of function chose_image_profile
 
+
 ######################
 # Variables globales #
 ######################
-
 
 """ # Solo de ser necesario
 require_admin() """
@@ -570,7 +523,6 @@ project_folder, audio_folder, image_folder = select_default_folders()
 image_profile_name, cwebp_flags = default_image_profile()
 max_threads = set_cpu_threads()
 audio_ext, image_ext, useless_ext, encrypted_ext, nwjs_files, nwjs_folders = detection_filters()
-
 
 if cwebp_available: print("cwebp encontrado. Procesamiento de imágenes disponible")
 else: 
@@ -600,7 +552,6 @@ if image_profile_name: print(f"Perfil de compresión de imágenes predeterminado
 # TODO
 # (Prioridad baja) Agregar opción para configurar flags de cwebp personalizados (para usuarios avanzados)
 # (Prioridad baja) Agregar opción para configurar flags de ffmpeg personalizados (para usuarios avanzados)
-# (Prioridad ALTA) Modificar comparación de archivos originales y comprimidos para permitir comparar archivos con diferentes extensiones
 # (Prioridad media) Agregar opción para detección de archivos cifrados y obtener key de project_folder/data/system.json
 # Agregar opción para desencriptar archivos cifrados usando la key obtenida
 # Agregar opción para reencriptar archivos desencriptados usando la key obtenida
@@ -609,7 +560,6 @@ if image_profile_name: print(f"Perfil de compresión de imágenes predeterminado
 #       https://github.com/uuksu/RPGMakerDecrypter
 #       RMDec, UAGC, Enigma unpacker, etc
 # Agregar opción para eliminar archivos inútiles detectados (ej: .psd)
-
 
 while True:
     print("\n" + "="*50)
@@ -645,23 +595,27 @@ while True:
             image_profile_name, cwebp_flags = menu_chose_image_profile(image_profile_name, cwebp_flags)
         elif option_main == 3 and image_processing_allowed():
             image_output = set_output_folder(project_folder, image_folder)
-            process_images(image_folder, image_ext, image_output, max_threads, cwebp_flags)
+            image_files_pairs = process_images(image_folder, image_ext, image_output, max_threads, cwebp_flags)
             print("\n---Moviendo Imágenes---")
-            replace_originals(image_folder, image_output)
+            # replace_originals(image_folder, image_output)
+            replace_originals(image_files_pairs)
             input("\nTarea Finalizada. Presiona Enter para continuar")
         elif option_main == 4 and audio_processing_allowed():
             audio_output = set_output_folder(project_folder, audio_folder)
-            process_audio(audio_folder, audio_ext, audio_output, max_threads)
+            audio_files_pairs = process_audio(audio_folder, audio_ext, audio_output, max_threads)
             print("\n----Moviendo Audio----")
-            replace_originals(audio_folder, audio_output)
+            # replace_originals(audio_folder, audio_output)
+            replace_originals(audio_files_pairs)
             input("\nTarea Finalizada. Presiona Enter para continuar")
         elif option_main == 5 and image_processing_allowed() and audio_processing_allowed():
             image_output = set_output_folder(project_folder, image_folder)
             audio_output = set_output_folder(project_folder, audio_folder)
-            process_images(image_folder, image_ext, image_output, max_threads, cwebp_flags)
-            process_audio(audio_folder, audio_ext, audio_output, max_threads)
+            image_files_pairs = process_images(image_folder, image_ext, image_output, max_threads, cwebp_flags)
+            audio_files_pairs = process_audio(audio_folder, audio_ext, audio_output, max_threads)
             print("\n----Moviendo Media----")
-            replace_originals(project_folder, (Path(__file__).parent/"compressed"))
+            # replace_originals(project_folder, (Path(__file__).parent/"compressed"))
+            replace_originals(image_files_pairs)
+            replace_originals(audio_files_pairs)
             input("\nTarea Finalizada. Presiona Enter para continuar")
         elif option_main == 6:
             setup_nwjs_game_launcher(project_folder)
