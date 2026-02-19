@@ -460,7 +460,7 @@ def log_processed_files(project_folder:Path, list:list[tuple[Path,Path]], log_na
 
         relative_paths = original.relative_to(project_folder)
         with open(f"{get_logs_folder()/log_name}.log", "a") as f:
-            f.write(f"{relative_paths.parents} \n    {original.name} {original_size}KB -> {compressed_size}KB\n")
+            f.write(f"{relative_paths.parent} \n    {original.name} {original_size}KB -> {compressed_size}KB\n")
 
 def replace_file(project_folder:Path, original_file:Path, compressed_file:Path, cumulative_size_total:float, cumulative_size_saved:float) -> tuple[float,float]:
     if compressed_file.exists():
