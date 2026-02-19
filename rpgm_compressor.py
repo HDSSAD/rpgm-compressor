@@ -6,6 +6,7 @@ from functools import partial
 from concurrent.futures import ThreadPoolExecutor
 
 def clear_screen():
+    """ Just a function to clear screen """
     cmd = "cls" if os.name == "nt" else "clear"
     subprocess.run(cmd, shell=True, check=False)
 clear_screen()
@@ -22,6 +23,9 @@ clear_screen()
 
 # Quizá crear una excepción adecuadamente en vez de recurrir a una función
 def log_exception(e:Exception, exception_source:str = "Unknown", msg:str = "None",file:Path = Path()):
+    """ Función que se lanza cuando ocurre una excepción.
+
+    Guarda un registro con la función donde ocurrió la excepción y un mensaje dentro de la carpeta logs del programa """
     print(f"Ocurrió un error inesperado en: {exception_source}")
     if file == Path(): print(f"Archivo afectado: {file}")
     print(f"Mensaje de error: \n {e}")
@@ -32,38 +36,44 @@ def log_exception(e:Exception, exception_source:str = "Unknown", msg:str = "None
             f.write(f"Error Source:{exception_source}\nError Message: {msg}\nAffected file: {file}\nException Message: {e}\n")
 
 def file_log(project_folder:Path, category:str, file_path:Path):
+    """ Registra un archivo dentro de la carpeta logs del programa """
     project_name = project_folder.name
     current_log_path = get_logs_folder()/project_name
     if not current_log_path.exists(): 
         current_log_path.mkdir(parents=True, exist_ok=True)
     with open(f"{current_log_path/category}.log", "a") as f:
-        f.write(f"{file_path}")
+        f.write(f"{file_path}\n")
 
 def cwebp_available():
+    """ Devuelve True si existe cwebp en las variables de entorno del sistema """
     if shutil.which("cwebp"):
         return True
     else:
         return False
 
 def ffprobe_available():
+    """ Devuelve True si existe ffprobe en las variables de entorno del sistema """
     if shutil.which("ffprobe"):
         return True
     else:
         return False
     
 def ffmpeg_available():
+    """ Devuelve True si existe ffmpeg en las variables de entorno del sistema """
     if shutil.which("ffmpeg"):
         return True
     else:
         return False
     
 def nwjs_available():
+    """ Devuelve True si existe nw en las variables de entorno del sistema """
     if shutil.which("nw"):
         return True
     else:
         return False
 
 def select_folder(folder_type: str) -> Path:
+    """ Abre la ventana de dialogo de selección de directorios """
     tk_root = tk.Tk()
     tk_root.withdraw()
     selected_folder = Path(filedialog.askdirectory(title=f"Selecciona la carpeta de {folder_type} o cancela para omitir"))
@@ -71,47 +81,56 @@ def select_folder(folder_type: str) -> Path:
     return selected_folder
     
 def audio_processing_allowed(project_folder:Path) -> bool:
+    """ Devuelve True si se cumplen los requisitos para que el programa ejecute las tareas relacionadas a audio """
     if ffprobe_available() and ffmpeg_available() and project_folder != Path():
         return True
     else:
         return False
     
 def image_processing_allowed(project_folder:Path) -> bool:
+    """ Devuelve True si se cumplen los requisitos para que el programa ejecute las tareas relacionadas a imágenes """
     if cwebp_available() and project_folder != Path():
         return True
     else:
         return False
 
 def nwjs_processing_allowed(project_folder:Path):
+    """ Devuelve True si se cumplen los requisitos para que el programa ejecute las tareas relacionadas a NW.js """
     if nwjs_available() and project_folder != Path():
         return True
     else:
         return False
 
 def get_folder_size(folder:Path) -> float:
+    """ Recorre una carpeta y devuelve el peso en MB de todo su contenido """
     size = sum(file.stat().st_size for file in folder.rglob('*') if file.is_file())
     size = round(size/1000000, ndigits=2)
     return size
 
 def get_script_folder() -> Path:
+    """ Devuelve la ruta actual del programa """
     return Path(__file__).parent
 
 def get_logs_folder() -> Path:
+    """ Devuelve la ruta hacia la carpeta logs del programa """
     logs_folder = get_script_folder()/"logs"
     if not logs_folder.exists():
         logs_folder.mkdir(parents=True, exist_ok=True)
     return logs_folder
 
 def get_game_launch_file() -> Path:
+    """ Devuelve la ruta hacia el lanzador del juego junto al programa """
     return get_script_folder()/"nwjs_game_launch.bat"
 
 def get_compressed_folder() -> Path:
+    """ Devuelve la ruta de la carpeta compressed del programa, y la crea si no existe """
     compressed_folder = get_script_folder()/"compressed"
     if not compressed_folder.exists():
         compressed_folder.mkdir(parents=True, exist_ok=True)
     return compressed_folder
 
-def cpu_threads() -> int:
+def get_cpu_threads() -> int:
+    """ Devuelve la cantidad máxima de nucleos disponibles en la PC menos 1 """
     cpu_cores = os.cpu_count()
     if cpu_cores is None:
         # No se pudo detectar, por defecto solo usamos 1 hilo
@@ -120,6 +139,7 @@ def cpu_threads() -> int:
         # La cantidad de hilos de procesamiento serán la cantidad de nucleos - 1
         return max(1, cpu_cores -1)
 
+""" #WIP Función no utilizada aún
 def set_cpu_threads() ->int:
     print(f"Se recomienda mantener los procesos simultáneos por debajo de: {os.cpu_count()}")
     process_quantity = input("Ingresa la cantidad de procesos simultanes deseados: ")
@@ -130,30 +150,37 @@ def set_cpu_threads() ->int:
         print("Error, no se introdujo un valor válido")
         print("Se asignará 1 solo procesos simultáneo")
         return 1
-    # end try
+    # end try """
 
 def default_image_profile_name() -> str:
+    """ Devuelve el nombre de perfil de compresión de imágenes por defecto a usar el el programa"""
     return "PERFORMANCE"
 
 def default_cwebp_flags() -> list[str]:
+    """ Devuelve los flags de cwebp que corresponden al perfil por defecto para la compresión de imágenes """
     return ["cwebp", "-q", "80", "-alpha_q", "100", "-exact", "-f", "30", "-af", "-quiet"]
 
 def audio_extensions() -> tuple[str,...]:
+    """ Devuelve una tupla que contiene las extensiónes de archivos de audio que el propgrama procesasará """
     return (".ogg", ".mp3", ".wav", ".m4a", ".flac")
 
 def image_extensions() -> tuple[str,...]:
+    """ Devuelve una tupla que contiene las extensiónes de archivos de imagenes que el propgrama procesasará """
     return (".jpg", ".jpeg", ".webp", ".png")
 
 def useless_extensions() -> tuple[str,...]:
+    """ Devuelve una tupla que contiene las extensiónes de archivos consideradas sin utilidad que el propgrama podría eliminar """
     return (".psd",)
 
 def encrypted_extensions() -> tuple[str,...]:
+    """ Devuelve una tupla que contiene las extensiónes de archivos encriptados """
     return (".rpgmvp", ".rpgmvm", ".rpgmvo",   # RPGM MV
             ".rpgmzp", ".rpgmzm", ".rpgmzo",   # RPGM MZ
             "ogg_", "m4a_", "wav_", "mp3_",    # Otros posibles archivos de audio cifrados
             "jpg_", "jpeg_", "png_", "webp_")  # Otros posibles archivos de imagen cifrados
 
 def nwjs_files() -> tuple[str,...]:
+    """ Devuelve una tupla que contiene los archivos de NW.js a buscar en la carpeta del juego seleccionado """
     return ("credits.html", "d3dcompiler_47.dll",
             "ffmpeg.dll", "icudtl.dat", 
             "libEGL.dll", "libGLESv2.dll", 
@@ -166,56 +193,32 @@ def nwjs_files() -> tuple[str,...]:
             "vk_swiftshader_icd.json", "vk_swiftshader.dll")
 
 def nwjs_folders() -> tuple[str,...]:
+    """ Devuelve una tupla que contiene las carpetas de NW.js a buscar en la carpeta del juego seleccionado """
     return ("locales", "swiftshader")
 
 def delete_folder_content(folder:Path) -> float:
+    """ Toma un directorio elimina todo su contenido, devolviendo el tamaño total de los archivos que contenia """
     folder_size:float = 0.0
-    for root, dirs, files in folder.walk():
-        for file in files:
-            file_path = (root/file)
-            if file_path.exists():
+    if folder.exists():
+        folder_content = list(folder.iterdir())
+        if len(folder_content) > 0:
+            folder_size = get_folder_size(folder)
+        for item in folder_content:
+            if item.is_dir():
                 try:
-                    folder_size += file_path.stat().st_size
-                    file_path.unlink()
-                    print(f"Eliminado: {file} de: {root.relative_to(Path(folder).parent)}")
-                except PermissionError:
-                    if file_path.exists():
-                        command_delete_cmd = [
-                            "cmd", "/c", "del", "/f", "/q", f"{file_path}"
-                        ]
-                        subprocess.run(command_delete_cmd, shell=True)
-                    print(f"(CMD) Eliminado: {file} de: {root.relative_to(Path(folder).parent)}")
-                except subprocess.CalledProcessError as e:
-                    log_exception(e, "delete_folder_content", "subprocess cmd error", file_path)
+                    shutil.rmtree(item, ignore_errors=True)
+                    print(f"Eliminado directorio: {item.name} de {item.parent}")
                 except Exception as e:
-                    log_exception(e, "delete_folder_content", "file deletion error", file_path)
-    for root, dirs, files in folder.walk(top_down=False):
-        for dir in dirs:
-            if (root/dir).exists():
+                    log_exception(e, "delete_folder_content", "rmtree in delete_folder", folder)
+            else:
                 try:
-                    (root/dir).rmdir()
-                    print(f"Eliminado: {dir} de: {root.relative_to(Path(folder).parent)}")
+                    item.unlink()
                 except Exception as e:
-                    log_exception(e, "delete_folder_content", "folder deletion error", (root/dir))
-                # end try
+                    log_exception(e, "delete_folder_content", "file unlink", item)
     return folder_size
 
-def delete_compressed_folder_content():
-    compressed_folder = get_compressed_folder()
-    for root, dirs, files in compressed_folder.walk():
-        for file in files:
-            try:
-                (root/file).unlink()
-            except Exception as e:
-                log_exception(e, "delete_compressed_folder_content", "file deletion", Path(root/file).parent)
-    for root, dirs, files in compressed_folder.walk(top_down=False):
-        for dir in dirs:
-            try:
-                (root/dir).rmdir()
-            except Exception as e:
-                log_exception(e, "delete_compressed_folder_content", "dir deletion", Path(root/dir))
-
 def delete_files_in_list(folder: Path, files_to_remove: tuple[str,...]) -> float:
+    """ Toma un directorio y una lista, busca en el directorio los archivos que se encuentren en la lista y los elimina """
     files_size:float = 0.0
     for root, _, files in folder.walk():
         for file in files:
@@ -225,33 +228,42 @@ def delete_files_in_list(folder: Path, files_to_remove: tuple[str,...]) -> float
                     try:
                         files_size += file_path.stat().st_size
                         file_path.unlink()
-                        print(f"Eliminado: {file} de: {file_path.parent.relative_to(Path(folder).parent)}")
+                        print(f"Eliminado: {file_path.name} de: {file_path.parent.relative_to(folder.parent)}")
                     except Exception as e:
-                        log_exception(e, "delete_files_in_list", "file deletion", file_path)
+                        log_exception(e, "delete_files_in_list", "file unlink", file_path)
     return files_size
 
 def delete_folders_in_list(folder: Path, folders_to_remove: tuple[str,...]) -> float:
+    """ Toma un directorio y una lista, busca en el directorio los nombres de directorios que se encuentren en la lista y los elimina """
     folder_size:float = 0.0
     for root, dirs, _ in folder.walk():
         for dir in dirs:
             if dir in folders_to_remove:
-                if (root/dir).exists():
+                current_folder = (root/dir)
+                if current_folder.exists():
+                    folder_size += get_folder_size(current_folder)
                     try:
-                        folder_size += delete_folder_content(root/dir)
-                        folder_parent = (root/dir).parent
-                        (root/dir).rmdir()
-                        print(f"Eliminado: {dir} de: {folder_parent.relative_to(folder.parent)}")
+                        shutil.rmtree(current_folder, ignore_errors=True)
+                        print( f"Eliminado directorio: {current_folder.name} de {current_folder.parent}")
                     except Exception as e:
-                        log_exception(e, "delete_folders_in_list", "folder deletion", (root/dir))
+                        log_exception(e, "delete_folders_in_list", "rmtree in delete_folder", current_folder)
     return folder_size
 
 def get_appdata() -> Path:
+    """ Devuelve un Path con la dirección de la carpeta ~/AppData/Local, y si no la encuentra devuelve un Path vacio """
     local_appdata = os.getenv("LOCALAPPDATA")
     if local_appdata == None:
         return Path()
     return Path(local_appdata)
 
 def setup_nwjs_game_launcher(project_folder: Path):
+    """ Realiza la instalación y configuración del launcher personalizado del juego:
+
+     - Crea un directorio para el perfil del juego en una carpeta específica en Local AppData que será la carpeta universal para todos los juegos.
+
+     - Modifica el archivo de configuración json del juego para usar la carpeta creada anteriormente como perfil.
+
+     - Instala el archivo .bat del launcher personalizado dentro de la caerpeta del juego """
     local_appdata = os.getenv("LOCALAPPDATA")
     if local_appdata == None:
         print("Selecciona la carpeta Local que está dentro de AppData")
@@ -318,11 +330,13 @@ def setup_nwjs_game_launcher(project_folder: Path):
 # END of function install_nwjs_game_launch()
 
 def clear_logs(project_folder:Path):
+    """ Borra logs antiguos """
     project_logs_path = get_logs_folder()/project_folder
     if project_logs_path.exists():
         delete_folder_content(project_logs_path)
 
 def get_audio_hz(project_folder:Path, file: Path) -> int:
+    """ Analiza un archivo de audio con ffprobe y devuelve sus hz """
     command_ffprobe = [
         "ffprobe", "-v", "error", "-select_streams", "a:0",
         "-show_entries", "stream=sample_rate",
@@ -339,6 +353,7 @@ def get_audio_hz(project_folder:Path, file: Path) -> int:
     return hz
 
 def create_subfolders_structure(file_pairs:list[tuple[Path,Path]]):
+    """ Toma una lista de pares de directorios y crea los directorios que se encuentran en la segunda posición de la tupla """
     for _, compressed in file_pairs:
         compressed_parent = compressed.parent
         if not compressed_parent.exists():
@@ -346,6 +361,10 @@ def create_subfolders_structure(file_pairs:list[tuple[Path,Path]]):
 
 
 def create_file_pairs_list(project_folder:Path, extensions:tuple[str,...], suffix:str) -> list[tuple[Path,Path]]:
+    """ Busca archivos ycarpetas en un directorio (project_folder) 
+     y por cada archivo cuya extensión cohincida con las buscadas (extensions) 
+     crea una tupla que contiene la dirección al archivo original y la dirección relativa dentro de la carpeta compressed del programa.
+     """
     file_pairs:list[tuple[Path,Path]] = []
     for root, _, files in project_folder.walk():
         for file in files:
@@ -357,6 +376,9 @@ def create_file_pairs_list(project_folder:Path, extensions:tuple[str,...], suffi
     return file_pairs
    
 def filter_audio_pairs(project_folder:Path, audio_list:list[tuple[Path,Path]]) -> list[tuple[Path,Path,int]]:
+    """ Toma una lista de pares de archivos de audio y utiliza la función auxiliar get_audio_hz() para obtener sus hz.
+     
+      De acuerdo al resultado, se selecciona un hz adecuado para ese archivo y se devuelve una nueva lista que incluye los hz al cual deberá ser convertido el archivo """
     filtered_list:list[tuple[Path,Path,int]] = []
     for file_pairs in audio_list:
         source, output = file_pairs
@@ -369,7 +391,7 @@ def filter_audio_pairs(project_folder:Path, audio_list:list[tuple[Path,Path]]) -
             filtered_list.append((source, output, target_hz))
     return filtered_list
 
-def compress_audio(source_output_hz:tuple[Path, Path, int]):
+def compress_audio(project_folder:Path, source_output_hz:tuple[Path, Path, int]):
     source, output, hz = source_output_hz
     command_ffmpeg = [
                     "ffmpeg", "-hide_banner", "-loglevel", "error",
@@ -381,7 +403,7 @@ def compress_audio(source_output_hz:tuple[Path, Path, int]):
                 ]
     if source.exists():
         try:
-            print(f"Procesando: {output}")
+            print(f"Procesando: {source.relative_to(project_folder)}")
             subprocess.run(command_ffmpeg)
         except Exception as e:
             log_exception(e, "compress_audio", "subprocess error", output)
@@ -389,13 +411,16 @@ def compress_audio(source_output_hz:tuple[Path, Path, int]):
     
 def process_audio(project_folder:Path) -> list[tuple[Path, Path, int]]:
     extensions:tuple[str,...] = audio_extensions()
-    max_threads:int = cpu_threads()
+    max_threads:int = get_cpu_threads()
     list_source_output = create_file_pairs_list(project_folder, extensions, suffix=".ogg")
     create_subfolders_structure(list_source_output)
     list_source_output_hz = filter_audio_pairs(project_folder, list_source_output)
     if len(list_source_output_hz) > 0:
         with ThreadPoolExecutor(max_threads) as executor:
-            executor.map(compress_audio, list_source_output_hz)
+            executor.map(
+                partial(compress_audio, project_folder),
+                list_source_output_hz
+            )
     return list_source_output_hz
 
 def compress_image(cwebp_flags:list[str], source_output_pair:tuple[Path,Path]):
@@ -414,14 +439,14 @@ def compress_image(cwebp_flags:list[str], source_output_pair:tuple[Path,Path]):
 
 def process_images(project_folder:Path, cwebp_flags:list[str]):
     extensions:tuple[str,...] = image_extensions()
-    max_threads:int = cpu_threads()
+    max_threads:int = get_cpu_threads()
     list_source_output = create_file_pairs_list(project_folder, extensions, suffix=".webp")
     create_subfolders_structure(list_source_output)
     if len(list_source_output) > 0:
         with ThreadPoolExecutor(max_threads) as executor:
             executor.map(
-            partial(compress_image, cwebp_flags),    # Función compress_image con argumento adicional cwebp_flags
-            list_source_output                       # Iterable para executor
+                partial(compress_image, cwebp_flags),    # Función compress_image con argumento adicional cwebp_flags
+                list_source_output                       # Iterable para executor
             )
     return list_source_output
 
@@ -444,7 +469,7 @@ def replace_file(project_folder:Path, original_file:Path, compressed_file:Path, 
         compressed_file_size = compressed_file.stat().st_size
         if 0 < compressed_file_size < original_file_size:
             try:
-                shutil.move(compressed_file, original_file)
+                shutil.move(compressed_file, original_file.with_suffix(compressed_file.suffix))
                 cumulative_size_saved += original_file_size - compressed_file_size
                 print(f"Reemplazando {original_file.relative_to(project_folder)}")
                 file_log(project_folder, "Original_replaced", compressed_file)
@@ -512,6 +537,7 @@ def menu_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tuple
 def main_menu(project_folder:Path = Path()):
     image_profile_name:str = default_image_profile_name()
     cwebp_flags:list[str] = default_cwebp_flags()
+    compressed_folder:Path = get_compressed_folder()
     project_size:float = 0.0
     if project_folder != Path():
         project_size = get_folder_size(project_folder)
@@ -564,7 +590,11 @@ def main_menu(project_folder:Path = Path()):
                     old_project_folder = project_folder
                     project_folder = select_folder("Proyecto")
                     if old_project_folder != project_folder:
-                        delete_compressed_folder_content()
+                        try: 
+                            delete_folder_content(compressed_folder)
+                            get_compressed_folder()
+                        except Exception as e:
+                            log_exception(e, "main_menu", "rmtree in delete_folder", compressed_folder)
                         project_size = get_folder_size(project_folder)
                         project_processed = False
                 elif option_main == 2:
@@ -614,7 +644,12 @@ def main_menu(project_folder:Path = Path()):
         except Exception as e:
             log_exception(e, "Main Menu")
 
-delete_compressed_folder_content()
+
+if any(get_compressed_folder().iterdir()):
+    try:
+        delete_folder_content(get_compressed_folder())
+    except Exception as e:
+        log_exception(e, "init", "rm delete_folder", get_compressed_folder())
 main_menu(select_folder("Proyecto"))
 
 print("=============================================")
