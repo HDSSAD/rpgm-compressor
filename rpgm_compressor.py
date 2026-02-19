@@ -1,4 +1,4 @@
-import os, sys, subprocess, shutil, json, ctypes
+import os, sys, subprocess, shutil, json
 from pathlib import Path
 import tkinter as tk
 from tkinter import filedialog
@@ -21,7 +21,7 @@ clear_screen()
         sys.exit() """
 
 # Quizá crear una excepción adecuadamente en vez de recurrir a una función
-def log_exception(e, exception_source:str = "Unknown", msg:str = "None",file:Path = Path()):
+def log_exception(e:Exception, exception_source:str = "Unknown", msg:str = "None",file:Path = Path()):
     print(f"Ocurrió un error inesperado en: {exception_source}")
     if file == Path(): print(f"Archivo afectado: {file}")
     print(f"Mensaje de error: \n {e}")
@@ -126,7 +126,7 @@ def set_cpu_threads() ->int:
     try:
         process_quantity = int(process_quantity)
         return process_quantity
-    except ValueError as e:
+    except ValueError:
         print("Error, no se introdujo un valor válido")
         print("Se asignará 1 solo procesos simultáneo")
         return 1
@@ -138,22 +138,22 @@ def default_image_profile_name() -> str:
 def default_cwebp_flags() -> list[str]:
     return ["cwebp", "-q", "80", "-alpha_q", "100", "-exact", "-f", "30", "-af", "-quiet"]
 
-def audio_extensions() -> tuple[str,str,str,str,str]:
+def audio_extensions() -> tuple[str,...]:
     return (".ogg", ".mp3", ".wav", ".m4a", ".flac")
 
-def image_extensions() -> tuple[str,str,str,str]:
+def image_extensions() -> tuple[str,...]:
     return (".jpg", ".jpeg", ".webp", ".png")
 
-def useless_extensions() -> tuple:
-    return tuple(".psd")
+def useless_extensions() -> tuple[str,...]:
+    return (".psd",)
 
-def encrypted_extensions() -> tuple:
+def encrypted_extensions() -> tuple[str,...]:
     return (".rpgmvp", ".rpgmvm", ".rpgmvo",   # RPGM MV
             ".rpgmzp", ".rpgmzm", ".rpgmzo",   # RPGM MZ
             "ogg_", "m4a_", "wav_", "mp3_",    # Otros posibles archivos de audio cifrados
             "jpg_", "jpeg_", "png_", "webp_")  # Otros posibles archivos de imagen cifrados
 
-def nwjs_files() -> tuple:
+def nwjs_files() -> tuple[str,...]:
     return ("credits.html", "d3dcompiler_47.dll",
             "ffmpeg.dll", "icudtl.dat", 
             "libEGL.dll", "libGLESv2.dll", 
@@ -165,7 +165,7 @@ def nwjs_files() -> tuple:
             "notification_helper.exe", "vulkan-1.dll",
             "vk_swiftshader_icd.json", "vk_swiftshader.dll")
 
-def nwjs_folders() -> tuple:
+def nwjs_folders() -> tuple[str,...]:
     return ("locales", "swiftshader")
 
 def delete_folder_content(folder:Path) -> float:
@@ -183,7 +183,7 @@ def delete_folder_content(folder:Path) -> float:
                         command_delete_cmd = [
                             "cmd", "/c", "del", "/f", "/q", f"{file_path}"
                         ]
-                        result = subprocess.run(command_delete_cmd, shell=True)
+                        subprocess.run(command_delete_cmd, shell=True)
                     print(f"(CMD) Eliminado: {file} de: {root.relative_to(Path(folder).parent)}")
                 except subprocess.CalledProcessError as e:
                     log_exception(e, "delete_folder_content", "subprocess cmd error", file_path)
@@ -215,9 +215,9 @@ def delete_compressed_folder_content():
             except Exception as e:
                 log_exception(e, "delete_compressed_folder_content", "dir deletion", Path(root/dir))
 
-def delete_files_in_list(folder: Path, files_to_remove: tuple[str]) -> float:
+def delete_files_in_list(folder: Path, files_to_remove: tuple[str,...]) -> float:
     files_size:float = 0.0
-    for root, dirs, files in folder.walk():
+    for root, _, files in folder.walk():
         for file in files:
             if file in files_to_remove:
                 file_path = Path(root/file)
@@ -230,9 +230,9 @@ def delete_files_in_list(folder: Path, files_to_remove: tuple[str]) -> float:
                         log_exception(e, "delete_files_in_list", "file deletion", file_path)
     return files_size
 
-def delete_folders_in_list(folder: Path, folders_to_remove: tuple[str]) -> float:
+def delete_folders_in_list(folder: Path, folders_to_remove: tuple[str,...]) -> float:
     folder_size:float = 0.0
-    for root, dirs, files in folder.walk():
+    for root, dirs, _ in folder.walk():
         for dir in dirs:
             if dir in folders_to_remove:
                 if (root/dir).exists():
@@ -259,7 +259,7 @@ def setup_nwjs_game_launcher(project_folder: Path):
         local_appdata = select_folder("Local AppData")
         if local_appdata == Path():
             return
-        elif local_appdata.parent != "AppData" and not (local_appdata.parent/"LocalLow").exists() and not (local_appdata.parent/"Roaming").exists():
+        elif local_appdata.parent.name != "AppData" and not (local_appdata.parent/"LocalLow").exists() and not (local_appdata.parent/"Roaming").exists():
             return
         
     local_appdata= Path(local_appdata)
@@ -332,22 +332,22 @@ def get_audio_hz(project_folder:Path, file: Path) -> int:
     try:
         result = subprocess.run(command_ffprobe, capture_output=True, text=True)
         hz = int(result.stdout.strip())
-    except Exception as e:
+    except Exception:
         hz = 0
         file_log(project_folder, "log_hz_error", file)
     # end try
     return hz
 
 def create_subfolders_structure(file_pairs:list[tuple[Path,Path]]):
-    for original, compressed in file_pairs:
+    for _, compressed in file_pairs:
         compressed_parent = compressed.parent
         if not compressed_parent.exists():
             compressed_parent.mkdir(parents=True, exist_ok=True)
 
 
-def create_file_pairs_list(project_folder:Path, extensions:tuple, suffix:str) -> list[tuple[Path,Path]]:
+def create_file_pairs_list(project_folder:Path, extensions:tuple[str,...], suffix:str) -> list[tuple[Path,Path]]:
     file_pairs:list[tuple[Path,Path]] = []
-    for root, dirs, files in project_folder.walk():
+    for root, _, files in project_folder.walk():
         for file in files:
             if file.lower().endswith(extensions):
                 source_file = root/file
@@ -387,8 +387,8 @@ def compress_audio(source_output_hz:tuple[Path, Path, int]):
             log_exception(e, "compress_audio", "subprocess error", output)
     # end try
     
-def process_audio(project_folder:Path) -> list:
-    extensions:tuple = audio_extensions()
+def process_audio(project_folder:Path) -> list[tuple[Path, Path, int]]:
+    extensions:tuple[str,...] = audio_extensions()
     max_threads:int = cpu_threads()
     list_source_output = create_file_pairs_list(project_folder, extensions, suffix=".ogg")
     create_subfolders_structure(list_source_output)
@@ -413,7 +413,7 @@ def compress_image(cwebp_flags:list[str], source_output_pair:tuple[Path,Path]):
         # end try
 
 def process_images(project_folder:Path, cwebp_flags:list[str]):
-    extensions:tuple = image_extensions()
+    extensions:tuple[str,...] = image_extensions()
     max_threads:int = cpu_threads()
     list_source_output = create_file_pairs_list(project_folder, extensions, suffix=".webp")
     create_subfolders_structure(list_source_output)
@@ -437,7 +437,7 @@ def log_processed_files(project_folder:Path, list:list[tuple[Path,Path]], log_na
         with open(f"{get_logs_folder()/log_name}.log", "a") as f:
             f.write(f"{relative_paths.parents} \n    {original.name} {original_size}KB -> {compressed_size}KB\n")
 
-def replace_file(project_folder, original_file:Path, compressed_file:Path, cumulative_size_total, cumulative_size_saved) -> tuple[float,float]:
+def replace_file(project_folder:Path, original_file:Path, compressed_file:Path, cumulative_size_total:float, cumulative_size_saved:float) -> tuple[float,float]:
     if compressed_file.exists():
         original_file_size = original_file.stat().st_size
         cumulative_size_total += original_file_size
@@ -468,7 +468,7 @@ def repalce_originals_img(project_folder:Path, file_pairs:list[tuple[Path,Path]]
 def repalce_originals_aud(project_folder:Path, files_list:list[tuple[Path,Path,int]]) -> tuple[float, float]:
     cumulative_size_total:float = 0.0
     cumulative_size_saved:float = 0.0
-    for original_file, compressed_file, hz in files_list:
+    for original_file, compressed_file, _ in files_list:
         cumulative_size_total, cumulative_size_saved = replace_file(project_folder, original_file, compressed_file, cumulative_size_total, cumulative_size_saved)
     return cumulative_size_total, cumulative_size_saved
 
@@ -513,7 +513,7 @@ def main_menu(project_folder:Path = Path()):
     image_profile_name:str = default_image_profile_name()
     cwebp_flags:list[str] = default_cwebp_flags()
     project_size:float = 0.0
-    if project_folder != Path:
+    if project_folder != Path():
         project_size = get_folder_size(project_folder)
     project_processed:bool = False
     while True:
