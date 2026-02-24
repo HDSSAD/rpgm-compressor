@@ -45,10 +45,10 @@ def file_log(project_folder:Path, category:str, file_path:Path):
         f.write(f"{file_path}\n")
 
 def get_nwjs_path() -> Path:
-    nwjs_Path = Path(os.getenv("nw"))
-    if nwjs_Path.exists():
-        return nwjs_Path
-    return Path()
+    nwjs_Path = os.getenv("nw")
+    if nwjs_Path == None:
+        return Path()
+    return Path(nwjs_Path)
 
 def cwebp_available():
     """ Devuelve True si existe cwebp en las variables de entorno del sistema """
@@ -271,7 +271,7 @@ def setup_nwjs_game_launcher(project_folder: Path):
 
      - Instala el archivo .bat del launcher personalizado dentro de la caerpeta del juego """
     local_appdata = get_appdata()
-    if local_appdata == None:
+    if local_appdata == Path():
         print("Selecciona la carpeta Local que está dentro de AppData")
         print("Usualmente en: C:/Users/(tu usuario)/AppData/Local")
         local_appdata = select_folder("Local AppData")
@@ -478,7 +478,7 @@ def replace_file(project_folder:Path, original_file:Path, compressed_file:Path, 
                 shutil.move(compressed_file, original_file.with_suffix(compressed_file.suffix))
                 try:
                     original_file.unlink()
-                except:
+                except Exception as e:
                     log_exception(e, "repalce_originals", "file unlink error", compressed_file)
                 cumulative_size_saved += original_file_size - compressed_file_size
                 print(f"Reemplazando {original_file.relative_to(project_folder)}")

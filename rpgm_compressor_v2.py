@@ -314,8 +314,8 @@ def get_audio_hz(project_folder:Path, file: Path) -> int:
 
 def compress_file(project_folder:Path, cwebp_flags:list[str], source:Path):
     if source.exists():
-        rel_file = source.relative_to(project_folder)
-        output = get_compressed_folder()/rel_file
+        rel_source = source.relative_to(project_folder)
+        output = get_compressed_folder()/rel_source
         command:list[str] = []
         if source.suffix in get_image_extensions():
             output = output.with_suffix(".webp")
@@ -377,7 +377,7 @@ def create_output_path(project_folder:Path, source_file_list:list[Path]):
         rel_source_file = source_file.relative_to(project_folder)
         output_file = get_compressed_folder()/rel_source_file
         if not output_file.parent.exists():
-            output_file.parent.mkdir()
+            output_file.parent.mkdir(parents=True, exist_ok=True)
 
 def process_files(project_folder:Path, extensions:tuple[str,...], cwebp_flags:list[str]):
     max_threads = get_cpu_threads()
@@ -390,11 +390,11 @@ def process_files(project_folder:Path, extensions:tuple[str,...], cwebp_flags:li
                 source_list
                 )
 
-def compare_project_size(original_size:float, saved_size:float):
+def compare_project_size(original_size:float, new_size:float):
     # Mostrar espacio en disco ahorrado
-    print(f"Tamaño de archivos de medios originales: {round(original_size/1000000, ndigits=2)}MB")
-    print(f"Tamaño de archivos de medios comprimidos: {round((original_size-saved_size)/1000000, ndigits=2)}MB")
-    print(f"Al reemplazar los originales se ha ahorrado en total: {round(saved_size/1000000, ndigits=2)}MB")
+    print(f"Tamaño de archivos de medios originales: {original_size}MB")
+    print(f"Tamaño de archivos de medios comprimidos: {original_size-new_size}MB")
+    print(f"Al reemplazar los originales se ha ahorrado en total: {new_size}MB")
 
 def menu_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tuple[str, list[str]]:
     cwebp_profiles = {  # indice del perfil : (nombre del perfil, lista de flags para cwebp)
@@ -491,12 +491,14 @@ def main_menu(project_folder:Path = Path()):
                     print("Ejecutando tarea de compresión de imágenes...")
                     process_files(project_folder, get_image_extensions(), cwebp_flags)
                     compare_project_size(initial_project_size, get_folder_size(project_folder))
+                    delete_folder_content(compressed_folder)
                     project_processed = True
                     input("\nTarea Finalizada. Presiona Enter para continuar")
                 elif option_main == 4:
                     print("Ejecutando tarea de compresión de audio...")
                     process_files(project_folder, get_audio_extensions(), cwebp_flags)
                     compare_project_size(initial_project_size, get_folder_size(project_folder))
+                    delete_folder_content(compressed_folder)
                     project_processed = True
                     input("\nTarea Finalizada. Presiona Enter para continuar")
                 elif option_main == 5:
@@ -504,6 +506,7 @@ def main_menu(project_folder:Path = Path()):
                     img_and_aud_extensions = (*get_image_extensions(), *get_audio_extensions())
                     process_files(project_folder, img_and_aud_extensions, cwebp_flags)
                     compare_project_size(initial_project_size, get_folder_size(project_folder))
+                    delete_folder_content(compressed_folder)
                     project_processed = True
                     input("\nTarea Finalizada. Presiona Enter para continuar")
                 elif option_main == 6:
@@ -532,10 +535,7 @@ def main_menu(project_folder:Path = Path()):
 
 
 if any(get_compressed_folder().iterdir()):
-    try:
-        delete_folder_content(get_compressed_folder())
-    except Exception as e:
-        log_exception(e, "init", "rm delete_folder", get_compressed_folder())
+    delete_folder_content(get_compressed_folder())
 main_menu(select_folder("Proyecto"))
 
 print("=============================================")
