@@ -335,14 +335,74 @@ def get_audio_hz(project_folder:Path, file: Path) -> int:
     # end try
     return hz
 
+def mark_as_optimized(media_file:Path) -> bool:
+    """ Copia el flujo de datos (sin recodificar) y añade el tag BROPTIMIZADO.
+    """
+    output = media_file.with_stem(f"{media_file.stem}_broptimized")
+    command:list[str] = [
+        "ffmpeg", "-y", "-i", str(media_file),
+        "-c", "copy",                        # Copia exacta de audio/video/imagen
+        "-map_metadata", "0",                # Mantiene metadatos originales
+        "-metadata", "comment=BROPTIMIZADO", # Añade la marca
+        str(output)
+    ]
+    try:
+        subprocess.run(command, capture_output=True, text=True)
+        output.rename(media_file)
+        return True
+    except Exception as e:
+        # TODO
+        print("ERROR", e)
+    # end try
+    return False
+# END of function mark_as_optimized()
+
+def compare_and_replace(original:Path, compressed:Path) -> bool:
+    """ Compara dos archivos en directorios diferentes:
+    * Si original es más pesado, lo reemplaza por compressed y marca compressed
+    * Si original es más ligero, elimina compressed y marca original
+    """
+    if compressed.exists() and original.exists():
+        if compressed.stat().st_size < original.stat().st_size:
+            try:
+                original.unlink()
+                mark_as_optimized(compressed)
+                shutil.move(compressed, original.parent)
+            except Exception as e:
+                # TODO
+                print("ERROR",e)
+        else:
+            try:
+                mark_as_optimized(original)
+                compressed.unlink()
+            except Exception as e:
+                # TODO
+                print("ERROR",e)
+    return True
+# END of function compare_and_replace()
+
+def is_optimized(file:Path)-> bool:
+    """ Verifica la existencia del string "BROPTIMIZADO" dentro del tag comment en un archivo
+    """
+    if file.exists():
+        command:list[str] = [
+            "ffprobe", "-v", "-quiet",
+            "-show_entries", "format_tags=comment",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            str(file)
+        ]
+        try:
+            result = subprocess.run(command, capture_output=True, text=True)
+            return "BROPTIMIZADO" in result.stdout
+        except Exception as e:
+            # TODO
+            print("ERROR",e)
+    return False
+# END of function is_optimized()
+
 def compress_image(project_folder:Path, cwebp_flags:list[str], source:Path):
     # Output será un webp disfrazado de png (u otra extensión del archivo original)
     # para facilitar la aceptación del archivo por parte del motor de RPG Maker y sus scripts
-    # Para evitar esto y hacerlo de forma "limpia" habría que entrar a cada script del proyecto y
-    # buscar las extensiones originales en el texto, extraer la ruta de la imagen a la que hacen referencia, 
-    # y si existe con extensión webp entonces editar el archivo del script para que apunte 
-    # al archivo con extensión webp en vez del anterior archivo con extensión png
-    # Pero esto podría demorar más en procesar y mantener la extensión original es mucho más rápido
     if source.exists():
         rel_source = source.relative_to(project_folder)
         output = get_compressed_folder()/rel_source
@@ -356,22 +416,9 @@ def compress_image(project_folder:Path, cwebp_flags:list[str], source:Path):
                 subprocess.run(command)
             except Exception as e:
                 # TODO
-                print("ERROR")
+                print("ERROR",e)
 
-            if output.exists() and source.exists():
-                if output.stat().st_size < source.stat().st_size:
-                    try:
-                        source.unlink()
-                        shutil.move(output, source.parent)
-                    except Exception as e:
-                        # TODO
-                        print("ERROR")
-                else:
-                    try:
-                        output.unlink()
-                    except Exception as e:
-                        # TODO
-                        print("ERROR")
+            compare_and_replace(source, output)
 # END of function compress_image()
 
 def compress_audio(project_folder:Path, source:Path):
@@ -398,48 +445,20 @@ def compress_audio(project_folder:Path, source:Path):
                 subprocess.run(command)
             except Exception as e:
                 # TODO
-                print("ERROR")
+                print("ERROR",e)
 
-            if output.exists() and source.exists():
-                if output.stat().st_size < source.stat().st_size:
-                    try:
-                        source.unlink()
-                        shutil.move(output, source.parent)
-                    except Exception as e:
-                        # TODO
-                        print("ERROR")
-                else:
-                    try:
-                        output.unlink()
-                    except Exception as e:
-                        # TODO
-                        print("ERROR")
+            compare_and_replace(source, output)
 # END of function compress_audio()
 
-def compress_video(project_folder:Path, quality:int, plus:int|float = 1.15, source:Path):
+def compress_video(project_folder:Path, quality:int, plus:int|float, source:Path):
     if source.exists():
         rel_source = source.relative_to(project_folder)
-        output = get_compressed_folder()/rel_source
+        output = get_compressed_folder()/rel_source.with_suffix(".mp4")
+        target_res, video_bitrate, vf_scale = optimal_video_quality(source, quality, plus)
 
-        width, height = get_video_resolution(source)
-        if width == 0 and height == 0:
+        if min(target_res, video_bitrate) == 0 or vf_scale == "":
             return False
-        target_res = min(width, height, quality)
-
-        if width > height:
-            vf_scale = f"-2:{target_res}"
-        else:
-            vf_scale = f"{target_res}:-2"
-
-        auto_video_kbps = optimal_kbps_for_resolution(target_res, plus)
-        original_video_kbps = get_video_kbps(source)
-        original_optimal_kbps = optimal_kbps_for_resolution(min(width, height), plus)
-        if 0 < original_video_kbps < original_optimal_kbps:
-            quality_diff = (original_video_kbps * 100 / original_optimal_kbps)
-            video_bitrate = int(auto_video_kbps * quality_diff / 100)
-        else:
-            video_bitrate = auto_video_kbps
-
+        
         audio_bitrate = "48"
         audio_codec = "libopus"
         extra = ["-pix_fmt", "yuv420p", "-ar", "48000", "-tune", "animation"]
@@ -449,7 +468,8 @@ def compress_video(project_folder:Path, quality:int, plus:int|float = 1.15, sour
         null = "NUL" if os.name == "nt" else "/dev/null"
 
         cmd1:list[str] = [
-            "ffmpeg", "-i", str(source),
+            "ffmpeg", "-hide_banner", "-loglevel", "error",
+            "-i", str(source),
             "-vf", f"scale={vf_scale}",
             "-c:v", video_codec,
             "-preset", "medium",
@@ -487,6 +507,8 @@ def compress_video(project_folder:Path, quality:int, plus:int|float = 1.15, sour
             return False
         # end try
 
+        compare_and_replace(source, output)
+
         # Limpieza
         for passlog_file in [f"{passlog}-0.log", f"{passlog}-0.log.mbtree"]:
             passlog_file = Path(passlog_file)
@@ -494,6 +516,43 @@ def compress_video(project_folder:Path, quality:int, plus:int|float = 1.15, sour
                 passlog_file.unlink()
         return True
 # END of function compress_video()
+
+def optimal_video_quality(source:Path, quality:int, plus:int|float) -> tuple[int, int, str]:
+    """ Recibe un video y devuelve su resolución y bitrate optimos junto con su escala
+    * source: Path que apunta a un archivo de video
+    * quality: lado más pequeño de resolución deseada
+    * plus: umbral de calidad
+    """
+    width, height = get_video_resolution(source)
+    original_res:int = min(width, height)
+    if original_res == 0:
+        return 0,0,""
+    
+    target_res:int = min(original_res, quality)
+    if width > height:
+        vf_scale = f"-2:{target_res}"
+    else:
+        vf_scale = f"{target_res}:-2"
+
+    original_kbps:int = get_video_kbps(source)
+    target_optimal_kbps:int = optimal_kbps_for_resolution(target_res, plus)
+    original_optimal_kbps:int = optimal_kbps_for_resolution(original_res, plus)
+
+    if original_kbps == 0:
+        return target_res, target_optimal_kbps, vf_scale
+
+    if original_res <= target_res:
+        if original_kbps <= original_optimal_kbps:
+            return original_res, original_kbps, vf_scale
+        else:
+            return original_res, original_optimal_kbps, vf_scale
+    else:
+        ratio:float = original_kbps/original_optimal_kbps
+        if ratio >= 1:
+            return target_res, target_optimal_kbps, vf_scale
+        else:
+            return target_res, int(target_optimal_kbps*ratio), vf_scale
+# END of function optimal_video_quality()
 
 def get_video_kbps(video_path:Path) -> int:
     cmd = [
@@ -544,7 +603,8 @@ def get_source_list(project_folder:Path, extensions:tuple[str,...]) -> list[Path
         for file in files:
             if file.lower().endswith(extensions):
                 source_file = root/file
-                source_file_list.append(source_file)
+                if not is_optimized(source_file):
+                    source_file_list.append(source_file)
     return source_file_list
 
 def create_output_path(project_folder:Path, source_file_list:list[Path]):
@@ -674,7 +734,8 @@ def get_rpgm_encryption_key(project_folder:Path) -> str|None:
         if len(encryption_key) == 32:
             return encryption_key
     except Exception as e:
-        print("No se ha encontrado la clave de encriptado")
+        # TODO
+        print("No se ha encontrado la clave de encriptado",e)
         return None
 
 
@@ -747,7 +808,7 @@ def main_menu(project_folder:Path|None = None):
             if video_processing_allowed(project_folder):
                 print(f"5 - Iniciar compresión de video")
                 options_range.append(5)
-            else: print(f"5 - [X] Compresión de audio no disponible sin ffmpeg y ffprobe")
+            else: print(f"5 - [X] Compresión de video no disponible sin ffmpeg y ffprobe")
             if image_processing_allowed(project_folder) and audio_processing_allowed(project_folder):
                 print(f"6 - Iniciar compresión de imágenes y audio")
                 options_range.append(6)
@@ -851,6 +912,11 @@ sys.exit()
 # Agregar nuevo menú para manejar archivos encriptados
 # Buscar en System.json: hasEncryptedImages, hasEncryptedAudio, y encryptionKey
 # Desencriptar archivos y volver a encriptarlos de ser necesario
-# Crear una función para procesar archivos de video
 # Manejar adecuadamente excepciones marcadas con "# TODO"
+# Mejorar selección automática de caldiad de video
+# Añadir presets de calidad de video
+# Añadir conversiín en formato webm
+# Probar conversión de audio en opus
+# Añadir conversiín de audio en mp3 o wav?
+# Añadir instalación de dependencias como NWJS, FFMPEG, y CWEBP?
 # Otras cosas más...
