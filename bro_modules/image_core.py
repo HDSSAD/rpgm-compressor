@@ -1,4 +1,5 @@
-import subprocess, exiftool # type: ignore
+import subprocess
+import exiftool # type: ignore
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from pathlib import Path
@@ -27,78 +28,55 @@ def compress_image(project_folder:Path, cwebp_flags:list[str], source:Path) -> t
 
 def process_images(project_folder:Path, cwebp_flags:list[str]):
     print("=== Preparando archivos de imágenes ===")
-    max_threads = bsys.get_cpu_threads()
     source_list = bfm.get_source_list(project_folder, bcfg.get_image_extensions())
-    result_list:list[tuple[Path,Path]] = []
-    if len(source_list) > 0:
-        bfm.create_output_path(project_folder, source_list)
+    to_process_list:list[Path] = get_unoptimized(source_list) if source_list else []
+    if to_process_list:
+        to_move_list:list[tuple[Path,Path]] = []
+        to_mark_list:list[Path] = []
+        bfm.create_output_path(project_folder, to_process_list)
+
         print("=== Iniciando procesamiento de imágenes ===")
-        with ThreadPoolExecutor(max_threads) as executor:
+        with ThreadPoolExecutor(bsys.get_cpu_threads()) as executor:
             futures = {executor.submit(compress_image, project_folder, cwebp_flags, source)
-                       for source in source_list}
+                    for source in to_process_list}
             for future in tqdm(as_completed(futures), desc="Comprimiendo imágenes", total=len(futures)):
                 result = future.result()
                 if result:
-                    result_list.append(result)
-    if len(result_list) > 0:
-        print("=== Iniciando comparación de imágenes ===")
-        with ThreadPoolExecutor(max_threads) as executor:
-            futures = {executor.submit(bfm.compare_and_replace, original, compressed)
-                       for original, compressed in result_list}
-            for _ in tqdm(as_completed(futures), desc="Comparando resultados", total=len(futures)):
-                pass
-# END of function process_images()
+                    source, compressed = result
+                    if source.stat().st_size > compressed.stat().st_size:
+                        smaller_file = compressed
+                    else:
+                        smaller_file = source
+                    to_mark_list.append(smaller_file)
+                    if smaller_file != source:
+                        to_move_list.append((smaller_file, source))
 
-def mark_as_optimized(file:Path) -> bool:
-    """ Añade el tag BROPTIMIZED como metadata al archivo de imagen usando exiftool
-
-    Retorna True si todo sale bien, de lo contrario retorna False
-    """
-    if file.exists():
-        tag = "File:FileTypeExtension"
-        with exiftool.ExifToolHelper() as et:
-            metadata:dict[str,str] = dict(et.get_tags(str(file), tag)[0]) # type: ignore
-        file_type = f".{str(metadata.get(tag)).lower()}" # File:FileTypeExtension
-        file_original_ext = file.suffix.lower()
-        if file_type != file_original_ext:
-            file = file.rename(file.with_suffix(file_type))
-        
-        mark:str = bcfg.get_custom_mark()
-        try:
+        if to_mark_list:
+            print("=== Marcando las imágenes de menos peso (puede demorar) ===")
+            mark:str = bcfg.get_custom_mark() # retorna "BROPTIMIZED"
             with exiftool.ExifToolHelper() as et:
-                et.set_tags(file,  # type: ignore
+                et.set_tags(to_mark_list,  # type: ignore
                             tags={"XMP:UserComment": mark}, 
                             params=["-overwrite_original", "-q"])
-            if file.suffix != file_original_ext:
-                file.rename(file.with_suffix(file_original_ext))
-            return True
-        except Exception as e:
-            print("ERROR, mark_as_optimized exiftool\n", e)
-            return False
-        # end try
-    return False
-# END of function mark_as_optimized()
-
-def is_optimized(file:Path) -> bool:
-    """ Verifica la existencia del string "BROPTIMIZED" dentro de la metadata del archivo de imagen
-
-    Retorna True si lo encuentra, de lo contrario retorna False
-    """
-    if file.exists():
-        mark:str = bcfg.get_custom_mark()   # returns the optimized mark
-        """ # Notas de opciones para otros formatos de imagen
-        keys = [
-            "XMP:UserComment", "EXIF:UserComment", "PNG:Comment",
-            "XMP:Description", "IPTC:Caption-Abstract", "GIF:Comment"
-        ] """
-        tags = ["XMP:UserComment", "GIF:Comment"]
-        with exiftool.ExifToolHelper() as et:
-            metadata:dict[str,str] = dict(et.get_tags(str(file), tags)[0]) # type: ignore
         
-        for tag in tags:
-            if tag in metadata and mark in str(metadata[tag]): # type: ignore
-                return True
-        return False
-    else:
-        return False
-# END of function is_optimized()
+        if to_move_list:
+            print("=== Reemplazando las imágenes más pesadas (puede demorar)===")
+            bfm.replace_originals(to_move_list)
+# END of function process_images()
+
+def get_unoptimized(source_list:list[Path]) -> list[Path]:
+    if source_list:
+        mark = bcfg.get_custom_mark() # retorna "BROPTIMIZED"
+        tags = ["SourceFile", "XMP:UserComment"]
+        mark_tag:str = "XMP:UserComment"
+        with exiftool.ExifToolHelper() as et:
+            all_metadata:list[dict[str,str]] = list(et.get_tags(source_list, tags=tags)) # type: ignore
+        
+        new_source_list:list[Path] = []
+        for metadata in all_metadata:
+            if mark not in str(metadata.get(mark_tag, "")):
+                new_source_list.append(Path(metadata["SourceFile"]))
+        return new_source_list
+    return []
+
+
