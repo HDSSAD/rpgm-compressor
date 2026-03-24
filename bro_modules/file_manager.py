@@ -125,7 +125,7 @@ def get_source_list(project_folder:Path, extensions:tuple[str,...]) -> list[Path
     source_file_list:list[Path] = []
     for root, _, files in project_folder.walk():
         for file in files:
-            if file.endswith(extensions):
+            if file.lower().endswith(extensions):
                 source_file_list.append(root/file)
     return source_file_list
 
@@ -139,7 +139,7 @@ def replace_originals(to_move_list:list[tuple[Path,Path]]):
 def delete_encrypted_files(project_folder:Path):
     for root, _, files in project_folder.walk():
         for file in files:
-            if file.endswith(bcfg.get_encrypted_extensions()):
+            if file.lower().endswith(bcfg.get_encrypted_extensions()):
                 file_path = root/file
                 try:
                     file_path.unlink(missing_ok=True)
