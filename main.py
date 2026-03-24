@@ -157,7 +157,7 @@ def main_menu(project_folder:Path|None = None):
             else: print(f"7 - [X] No se puede Instalar y configurar {bfm.get_game_launch_file().name} si el archivo no existe junto a este script")
             print(f"8 - Limpiar NW.js local del directorio del proyecto")
             options_range.append(8)
-        print("9 - Borrar logs")
+        print("9 - Eliminar archivos encriptados")
         options_range.append(9)
         print("0 - Salir del programa")
 
@@ -183,7 +183,7 @@ def main_menu(project_folder:Path|None = None):
                         print("Ejecutando tarea de compresión de imágenes...")
                         image_core.process_images(project_folder, cwebp_flags)
                         update_system_json(project_folder, ["hasEncryptedImages"], False)
-                        bfm.compare_project_size(initial_project_size, bfm.get_folder_size(project_folder))
+                        bfm.compare_project_size(project_folder, initial_project_size)
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
                         project_processed = True
                         input("\nTarea Finalizada. Presiona Enter para continuar")
@@ -191,14 +191,14 @@ def main_menu(project_folder:Path|None = None):
                         print("Ejecutando tarea de compresión de audios...")
                         av_core.process_audios(project_folder)
                         update_system_json(project_folder, ["hasEncryptedAudio"], False)
-                        bfm.compare_project_size(initial_project_size, bfm.get_folder_size(project_folder))
+                        bfm.compare_project_size(project_folder, initial_project_size)
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
                         project_processed = True
                         input("\nTarea Finalizada. Presiona Enter para continuar")
                     elif option_main == 5:
                         print("Ejecutando tarea de compresión de videos...")
                         av_core.process_videos(project_folder, 600)
-                        bfm.compare_project_size(initial_project_size, bfm.get_folder_size(project_folder))
+                        bfm.compare_project_size(project_folder, initial_project_size)
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
                         project_processed = True
                         input("\nTarea Finalizada. Presiona Enter para continuar")
@@ -208,7 +208,7 @@ def main_menu(project_folder:Path|None = None):
                         av_core.process_audios(project_folder)
                         av_core.process_videos(project_folder, 600)
                         update_system_json(project_folder, ["hasEncryptedImages", "hasEncryptedAudio"], False)
-                        bfm.compare_project_size(initial_project_size, bfm.get_folder_size(project_folder))
+                        bfm.compare_project_size(project_folder, initial_project_size)
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
                         project_processed = True
                         input("\nTarea Finalizada. Presiona Enter para continuar")
@@ -223,11 +223,12 @@ def main_menu(project_folder:Path|None = None):
                         bfm.delete_files_in_list(project_folder, bcfg.get_nwjs_files())
                         bfm.delete_folders_in_list(project_folder, bcfg.get_nwjs_folders())
                         print(f"Archivos locales de NW.js eliminados de {project_folder.name}")
-                        bfm.compare_project_size(initial_project_size, bfm.get_folder_size(project_folder))
+                        bfm.compare_project_size(project_folder, initial_project_size)
                         project_processed = True
-                elif option_main == 9:
-                    print("Borrando logs...")
-                    bfm.delete_folder(bfm.get_logs_folder())
+                    elif option_main == 9:
+                        print(f"Borrando archivos encriptados en {project_folder.name}...")
+                        bfm.delete_encrypted_files(project_folder)
+                        bfm.compare_project_size(project_folder, initial_project_size)
             else:
                 print(f"Número fuera del rango {str(options_range)}.")
 
