@@ -11,8 +11,8 @@ def compress_image(project_folder:Path, cwebp_flags:list[str], source:Path) -> t
     # Output será un webp disfrazado de png (u otra extensión del archivo original)
     # para facilitar la aceptación del archivo por parte del motor de RPG Maker y sus scripts
     if source.exists():
-        rel_source = source.relative_to(project_folder)
-        output = bfm.get_compressed_folder(project_folder)/rel_source.with_suffix(".webp")
+        rel_source: Path = source.relative_to(project_folder)
+        output: Path = bfm.get_compressed_folder(project_folder)/rel_source.with_suffix(".webp")
         command:list[str] = cwebp_flags.copy()
         command.append(f"{source}")
         command.append("-o")
@@ -27,8 +27,8 @@ def compress_image(project_folder:Path, cwebp_flags:list[str], source:Path) -> t
 # END of function compress_image()
 
 def process_images(project_folder:Path, cwebp_flags:list[str]):
-    print("=== Preparando archivos de imágenes ===")
-    source_list = bfm.get_source_list(project_folder, bcfg.get_image_extensions())
+    print("- Preparando archivos de imágenes")
+    source_list: list[Path] = bfm.get_source_list(project_folder, bcfg.get_image_extensions())
     if not source_list:
         print("[!] No hay archivos de imágenes que procesar")
         return
@@ -42,24 +42,24 @@ def process_images(project_folder:Path, cwebp_flags:list[str]):
     to_mark_list:list[Path] = []
     bfm.create_output_path(project_folder, to_process_list)
 
-    print("=== Iniciando procesamiento de imágenes ===")
+    print("- Iniciando procesamiento de imágenes")
     with ThreadPoolExecutor(bsys.get_cpu_threads()) as executor:
         futures = {executor.submit(compress_image, project_folder, cwebp_flags, source)
                 for source in to_process_list}
         for future in tqdm(as_completed(futures), desc="Comprimiendo imágenes", total=len(futures)):
-            result = future.result()
+            result: tuple[Path, Path] | None = future.result()
             if result:
                 source, compressed = result
                 if source.stat().st_size > compressed.stat().st_size:
-                    smaller_file = compressed
+                    smaller_file: Path = compressed
                 else:
-                    smaller_file = source
+                    smaller_file: Path = source
                 to_mark_list.append(smaller_file)
                 if smaller_file != source:
                     to_move_list.append((smaller_file, source))
 
     if to_mark_list:
-        print("=== Marcando las imágenes de menos peso ===")
+        print("- Marcando las imágenes de menor peso")
         with ThreadPoolExecutor(bsys.get_cpu_threads()) as executor:
             futures = {executor.submit(mark_as_optimized, chunk)
                        for chunk in list(chunk_list(to_mark_list, 10))}
@@ -67,10 +67,9 @@ def process_images(project_folder:Path, cwebp_flags:list[str]):
                                desc="Marcando archivos",
                                total=len(futures)):
                 pass
-
-    if to_move_list:
-        print("=== Reemplazando las imágenes más pesadas ===")
-        bfm.replace_originals(to_move_list)
+    
+    return to_move_list
+    
 # END of function process_images()
 
 def mark_as_optimized(to_mark_list:list[Path]):
