@@ -14,20 +14,19 @@ def find_system_json(project_folder:Path) -> Path|None:
     
     Si no se encuentra y no se selecciona el archivo válido, devuelve un Path() vacío.
     """
-    posible_system_paths = [
+    posible_system_paths: list[Path] = [
         project_folder/"www/data/System.json", 
         project_folder/"data/System.json"
         ]
     for system_json_path in posible_system_paths:
         if system_json_path.exists():
             return system_json_path
-    system_json_path = bfm.select_file(project_folder, "System.json", ".json")
+    system_json_path: Path | None = bfm.select_file(project_folder, "System.json", ".json")
     if system_json_path != None:
         if system_json_path.name.lower() == "system.json" and bfm.subfolder_of(system_json_path, project_folder):
             return system_json_path
     return None
     
-
 def get_json_keyvalue(project_folder:Path, json_path:Path, key:str):
     """ Acepta un Path apuntando a un archivo json.
 
@@ -42,15 +41,15 @@ def get_json_keyvalue(project_folder:Path, json_path:Path, key:str):
         return value
     except Exception as e:
         # TODO
-        print("[X] ERROR: No se obtuvo el valor correcto de encriptación")
+        print("[X] ERROR: No se obtuvo el valor correcto de encriptación\n")
         raise e
             
 def update_system_json(project_folder:Path, key_list:list[str], value:bool):
-    print("=== Actualizando System.json ===")
-    system_json_path = find_system_json(project_folder)
+    print("\n=== Actualizando System.json ===")
+    system_json_path: Path | None = find_system_json(project_folder)
     if system_json_path == None:
-        print(f"[X] ERROR: No se ha seleccionado un System.json válido dentro de {project_folder}")
-        input("[!] La tarea no puede continuar. Presione una tecla para omitir la actualización de JSON")
+        print(f"[!] No se ha encontró un System.json válido dentro de {project_folder}")
+        print("[!] Se omitirá la actualización de JSON\n")
         return
     try:
         with system_json_path.open("r", encoding="utf-8") as f:
@@ -70,7 +69,7 @@ def update_system_json(project_folder:Path, key_list:list[str], value:bool):
         blog.log_exception(e,"update_system_json", "unknown json error", system_json_path)
 
 def get_rpgm_encryption_key(project_folder:Path) -> str|None:
-    system_json = find_system_json(project_folder)
+    system_json: Path | None = find_system_json(project_folder)
     if system_json == None:
         return None
     try:
@@ -80,12 +79,11 @@ def get_rpgm_encryption_key(project_folder:Path) -> str|None:
             return encryption_key
     except Exception as e:
         # TODO
-        print("No se ha encontrado la clave de encriptado",e)
+        print("No se ha encontrado la clave de encriptado\n",e)
         return None
 
-
 def menu_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tuple[str, list[str]]:
-    cwebp_profiles = {  # indice del perfil : (nombre del perfil, lista de flags para cwebp)
+    cwebp_profiles: dict[int, tuple[str, list[str]]] = {  # indice del perfil : (nombre del perfil, lista de flags para cwebp)
         1: ("PERFORMANCE", ['cwebp', '-q', '80', '-alpha_q', '100', '-exact', '-f', '30', '-af', '-quiet']),
         2: ("MEDIUM", ['cwebp', '-near_lossless', '75', '-alpha_q', '100', '-exact', '-m', '6', '-mt', '-quiet']),
         3: ("QUALITY", ['cwebp', '-lossless', '-z', '9', '-alpha_q', '100', '-exact', '-mt', '-quiet'])
@@ -101,8 +99,7 @@ def menu_image_profile(image_profile_name: str, cwebp_flags: list[str]) -> tuple
         print("0 - Aceptar cambios y volver al menu principal")
         print("="*50)
         try:
-            option_img_profile = input("Elige perfil (1-3) o 0 para volver al menu principal: ").strip()
-            option_img_profile = int(option_img_profile)
+            option_img_profile:int = int(input("Elige perfil (1-3) o 0 para volver al menu principal: ").strip())
             if option_img_profile in cwebp_profiles:
                 image_profile_name, cwebp_flags = cwebp_profiles[option_img_profile]
             elif option_img_profile == 0:
@@ -122,14 +119,17 @@ def main_menu(project_folder:Path|None = None):
         initial_project_size = bfm.get_folder_size(project_folder)
     project_processed:bool = False
     while True:
+        print("")
         print("="*50)
         print("     MENU PRINCIPAL")
         print("="*50)
+        print("")
 
         if project_folder != None: 
             print(f"Tamaño inicial del proyecto: {initial_project_size}MB", \
                   f"\nTamaño Actual del proyecto: {bfm.get_folder_size(project_folder)}MB" if project_processed else "")
-
+            print("")
+            
         options_range:list[int] = [0,1,2]
         print(f"1 - Seleccionar ruta del proyecto. Actual:", f"{project_folder}" if project_folder != None else "NO SELECCIONADA")
         print(f"2 - Menu opciones de calidad de conversión de imágenes. Preset Actual: {image_profile_name}")
@@ -162,15 +162,14 @@ def main_menu(project_folder:Path|None = None):
         print("0 - Salir del programa")
 
         try:
-            option_main = input(f"Elige una opción {str(options_range)}: ").strip()
+            option_main:int = int(input(f"Elige una opción {str(options_range)}: ").strip())
             print("") # Solo para tener una lína vacia bajo la selección
-            option_main = int(option_main)
             if option_main in options_range:
                 if option_main == 0:
                     break
                 elif option_main == 1:
                     print("Seleccionando directorio del proyecto")
-                    new_project_folder = bfm.select_folder("Proyecto")
+                    new_project_folder: Path | None = bfm.select_folder("Proyecto")
                     if new_project_folder != project_folder and new_project_folder != None:
                         project_folder = new_project_folder
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
@@ -180,55 +179,66 @@ def main_menu(project_folder:Path|None = None):
                     if option_main == 2:
                         image_profile_name, cwebp_flags = menu_image_profile(image_profile_name, cwebp_flags)
                     elif option_main == 3:
-                        print("Ejecutando tarea de compresión de imágenes...")
-                        image_core.process_images(project_folder, cwebp_flags)
+                        print("\n=== Procesando imágenes ===")
+                        to_move_ilist = image_core.process_images(project_folder, cwebp_flags)
+                        if to_move_ilist:
+                            to_move_ilist = bfm.replace_originals(to_move_ilist)
                         update_system_json(project_folder, ["hasEncryptedImages"], False)
                         bfm.compare_project_size(project_folder, initial_project_size)
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
                         project_processed = True
-                        input("\nTarea Finalizada. Presiona Enter para continuar")
                     elif option_main == 4:
-                        print("Ejecutando tarea de compresión de audios...")
-                        av_core.process_audios(project_folder)
+                        print("\n=== Procesando audios ===")
+                        to_move_alist = av_core.process_audios(project_folder)
+                        if to_move_alist:
+                            to_move_alist = bfm.replace_originals(to_move_alist)
                         update_system_json(project_folder, ["hasEncryptedAudio"], False)
                         bfm.compare_project_size(project_folder, initial_project_size)
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
                         project_processed = True
-                        input("\nTarea Finalizada. Presiona Enter para continuar")
                     elif option_main == 5:
-                        print("Ejecutando tarea de compresión de videos...")
-                        av_core.process_videos(project_folder, 600)
+                        print("\n=== Procesando videos ===")
+                        to_move_vlist = av_core.process_videos(project_folder, 600)
+                        if to_move_vlist:
+                            to_move_vlist = bfm.replace_originals(to_move_vlist)
                         bfm.compare_project_size(project_folder, initial_project_size)
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
                         project_processed = True
-                        input("\nTarea Finalizada. Presiona Enter para continuar")
                     elif option_main == 6:
-                        print("Ejecutando tarea de compresión de archivos multimedia...")
-                        image_core.process_images(project_folder, cwebp_flags)
-                        av_core.process_audios(project_folder)
-                        av_core.process_videos(project_folder, 600)
+                        print("\n=== Procesando archivos multimedia ===")
+                        to_move_ilist = image_core.process_images(project_folder, cwebp_flags)
+                        if to_move_ilist:
+                            to_move_ilist = bfm.replace_originals(to_move_ilist)
+                        to_move_alist = av_core.process_audios(project_folder)
+                        if to_move_alist:
+                            to_move_alist = bfm.replace_originals(to_move_alist)
+                        to_move_vlist = av_core.process_videos(project_folder, 600)
+                        if to_move_vlist:
+                            to_move_vlist = bfm.replace_originals(to_move_vlist)
                         update_system_json(project_folder, ["hasEncryptedImages", "hasEncryptedAudio"], False)
                         bfm.compare_project_size(project_folder, initial_project_size)
                         bfm.delete_folder(bfm.get_compressed_folder(project_folder))
                         project_processed = True
-                        input("\nTarea Finalizada. Presiona Enter para continuar")
                     elif option_main == 7:
-                        print("Preparando el entorno del juego...")
-                        nwjs_core.setup_nwjs_game_launcher(project_folder)
-                        print("nwjs_game_launch instalado y configurado")
-                        subprocess.run(f"{project_folder/bfm.get_game_launch_file().name}", cwd=f"{project_folder}")
-                        print("Juego lanzado")
+                        print("\nPreparando el entorno del juego...")
+                        nwjs_game_setup_succesful: bool | None = nwjs_core.setup_nwjs_game_launcher(project_folder)
+                        if nwjs_game_setup_succesful:
+                            print("nwjs_game_launch instalado y configurado")
+                            subprocess.run(f"{project_folder/bfm.get_game_launch_file().name}", cwd=f"{project_folder}")
+                            print("Juego lanzado")
                     elif option_main == 8:
-                        print(f"Borrando archivos de NW.js locales en {project_folder.name}...")
+                        print(f"\nBorrando archivos de NW.js locales en {project_folder.name}...")
                         bfm.delete_files_in_list(project_folder, bcfg.get_nwjs_files())
                         bfm.delete_folders_in_list(project_folder, bcfg.get_nwjs_folders())
-                        print(f"Archivos locales de NW.js eliminados de {project_folder.name}")
+                        print(f"\nArchivos locales de NW.js eliminados de {project_folder.name}")
                         bfm.compare_project_size(project_folder, initial_project_size)
                         project_processed = True
                     elif option_main == 9:
-                        print(f"Borrando archivos encriptados en {project_folder.name}...")
+                        print(f"\nBorrando archivos encriptados en {project_folder.name}...")
                         bfm.delete_encrypted_files(project_folder)
                         bfm.compare_project_size(project_folder, initial_project_size)
+                        project_processed = True
+
             else:
                 print(f"Número fuera del rango {str(options_range)}.")
 
@@ -239,7 +249,7 @@ def main_menu(project_folder:Path|None = None):
 try:
     main_menu(bfm.select_folder("Proyecto"))
 except Exception as e:
-    input(e)
+    input(f"Algo salió muy mal... \n{e}")
 
 print("=============================================")
 print("Programa terminado. Presione enter para salir")
