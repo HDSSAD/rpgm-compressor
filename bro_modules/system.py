@@ -3,7 +3,7 @@ from pathlib import Path
 
 def clear_screen():
     """ Just a function to clear screen """
-    cmd = "cls" if os.name == "nt" else "clear"
+    cmd:str = "cls" if os.name == "nt" else "clear"
     subprocess.run(cmd, shell=True, check=False)
 
 def cwebp_available():
@@ -64,7 +64,7 @@ def nwjs_processing_allowed(project_folder:Path|None) -> bool:
 
 def get_cpu_threads() -> int:
     """ Devuelve la cantidad máxima de nucleos disponibles en la PC menos 1 """
-    cpu_cores = os.cpu_count()
+    cpu_cores: int | None = os.cpu_count()
     if cpu_cores is None:
         # No se pudo detectar, por defecto solo usamos 1 hilo
         return 1
