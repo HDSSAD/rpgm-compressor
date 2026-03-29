@@ -3,12 +3,12 @@ from pathlib import Path
 from bro_modules import file_manager as bfm
 from bro_modules import logger as blog
 
-def setup_nwjs_game_launcher(project_folder: Path):
+def setup_nwjs_game_launcher(project_folder: Path) -> bool|None:
     """ Realiza la instalación y configuración del launcher personalizado del juego:
     - Crea un directorio para el perfil del juego en una carpeta específica en Local AppData que será la carpeta universal para todos los juegos.
     - Modifica el archivo de configuración json del juego para usar la carpeta creada anteriormente como perfil.
     - Instala el archivo .bat del launcher personalizado dentro de la caerpeta del juego """
-    local_appdata = bfm.get_localappdata()
+    local_appdata: Path | None = bfm.get_localappdata()
     if local_appdata == None:
         print("Selecciona la carpeta Local que está dentro de AppData")
         print("Usualmente en: C:/Users/(tu usuario)/AppData/Local")
@@ -19,7 +19,7 @@ def setup_nwjs_game_launcher(project_folder: Path):
             return
         
     local_appdata= Path(local_appdata)
-    rpgm_user_profile = local_appdata/"RPGM/User Data"
+    rpgm_user_profile: Path = local_appdata/"RPGM/User Data"
 
     # Borrar todos los archivos en rpgm_user_profile
     if rpgm_user_profile.exists():
@@ -30,7 +30,7 @@ def setup_nwjs_game_launcher(project_folder: Path):
         rpgm_user_profile.mkdir(parents=True, exist_ok=True)
 
     # Update package.json
-    package_json_path = project_folder / "package.json"
+    package_json_path: Path = project_folder / "package.json"
     if not package_json_path.exists():
         package_json_path = project_folder / "www" / "package.json"
         if not package_json_path.exists():
@@ -60,7 +60,7 @@ def setup_nwjs_game_launcher(project_folder: Path):
             blog.log_exception(e,"setup_nwjs_game_launcher", "unknown json error", package_json_path)
         # Update package.json END
 
-    nwjs_game_launcher = bfm.get_script_folder() / "nwjs_game_launch.bat"
+    nwjs_game_launcher: Path = bfm.get_script_folder() / "nwjs_game_launch.bat"
     if not nwjs_game_launcher.exists():
         print("[X] No se encontró el script de lanzamiento del juego con NW.js del sistema")
         print("[X] Asegúrate de que nwjs_game_launch.bat esté en la misma carpeta que este script")
@@ -70,6 +70,7 @@ def setup_nwjs_game_launcher(project_folder: Path):
         try:
             shutil.copy(nwjs_game_launcher, project_folder / "nwjs_game_launch.bat")
             print(f"[+] Script de NWJS Game Launcher copiado a {project_folder}")
+            return True
         except Exception as e:
             blog.log_exception(e, "setup_nwjs_game_launcher", "shutil copy error", nwjs_game_launcher)
 # END of function install_nwjs_game_launch()
