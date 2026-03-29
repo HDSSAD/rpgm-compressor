@@ -8,7 +8,7 @@ from bro_modules import config as bcfg
 
 def get_localappdata() -> Path|None:
     """ Devuelve un Path con la dirección de la carpeta ~/AppData/Local, y si no la encuentra devuelve un Path vacio """
-    local_appdata = os.getenv("LOCALAPPDATA")
+    local_appdata: str | None = os.getenv("LOCALAPPDATA")
     if local_appdata == None:
         return None
     return Path(local_appdata)
@@ -19,7 +19,7 @@ def get_script_folder() -> Path:
 
 def get_logs_folder() -> Path:
     """ Devuelve la ruta hacia la carpeta logs del programa """
-    logs_folder = get_script_folder()/"logs"
+    logs_folder: Path = get_script_folder()/"logs"
     if not logs_folder.exists():
         logs_folder.mkdir(parents=True, exist_ok=True)
     return logs_folder
@@ -30,7 +30,7 @@ def get_game_launch_file() -> Path:
     
 def get_folder_size(folder:Path) -> float:
     """ Recorre una carpeta y devuelve el peso en MB de todo su contenido """
-    size = sum(file.stat().st_size for file in folder.rglob('*') if file.is_file())
+    size:float = sum(file.stat().st_size for file in folder.rglob('*') if file.is_file())
     size = round(size/(1024*1024), ndigits=2)
     return size
 
@@ -41,15 +41,15 @@ def subfolder_of(folder:Path, parent:Path) -> bool:
 
 def get_compressed_folder(project_folder:Path) -> Path:
     """ Devuelve la ruta de la carpeta compressed del programa, y la crea si no existe """
-    compressed_folder = project_folder.parent/"broptimized_temp"
+    compressed_folder: Path = project_folder.parent/"broptimized_temp"
     if not compressed_folder.exists():
         compressed_folder.mkdir(parents=True, exist_ok=True)
     return compressed_folder
 
 def create_output_path(project_folder:Path, source_file_list:list[Path]):
     for source_file in source_file_list:
-        rel_source_file = source_file.relative_to(project_folder)
-        output_file = get_compressed_folder(project_folder)/rel_source_file
+        rel_source_file: Path = source_file.relative_to(project_folder)
+        output_file: Path = get_compressed_folder(project_folder)/rel_source_file
         if not output_file.parent.exists():
             output_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -57,7 +57,7 @@ def select_folder(folder_type: str) -> Path|None:
     """ Abre la ventana de dialogo de selección de directorios """
     tk_root = tk.Tk()
     tk_root.withdraw()
-    selected_folder = filedialog.askdirectory(title=f"Selecciona la carpeta de {folder_type} o cancela para omitir")
+    selected_folder: str = filedialog.askdirectory(title=f"Selecciona la carpeta de {folder_type} o cancela para omitir")
     tk_root.destroy()
     if len(selected_folder) == 0:
         return None
@@ -67,7 +67,7 @@ def select_file(project_folder:Path, file_name:str, extension:str) -> Path|None:
     """ Abre la ventana de dialogo de selección de archivos """
     tk_root = tk.Tk()
     tk_root.withdraw()
-    selected_file = filedialog.askopenfilename(title=f"Selecciona el archivo {file_name} correspondiente", filetypes=[(f"{extension}",f"{extension}")], initialdir=str(project_folder))
+    selected_file: str = filedialog.askopenfilename(title=f"Selecciona el archivo {file_name} correspondiente", filetypes=[(f"{extension}",f"{extension}")], initialdir=str(project_folder))
     tk_root.destroy()
     if len(selected_file) == 0:
         return None
@@ -104,7 +104,7 @@ def delete_folders_in_list(folder: Path, folders_to_remove: tuple[str,...]) -> f
     for root, dirs, _ in folder.walk():
         for dir in dirs:
             if dir in folders_to_remove:
-                current_folder = (root/dir)
+                current_folder: Path = (root/dir)
                 if current_folder.exists():
                     folder_size += get_folder_size(current_folder)
                     try:
@@ -116,7 +116,8 @@ def delete_folders_in_list(folder: Path, folders_to_remove: tuple[str,...]) -> f
 
 def compare_project_size(project_folder:Path, initial_project_size:float):
     # Mostrar espacio en disco ahorrado
-    new_size = get_folder_size(project_folder)
+    new_size: float = get_folder_size(project_folder)
+    print("")
     print(f"Tamaño del proyecto originalmente:.....{initial_project_size}MB")
     print(f"Espacio Ahorrado hasta ahora:..........{round(initial_project_size-new_size, ndigits=2)}MB")
     print(f"Tamaño actual del proyecto:............{new_size}MB")
@@ -130,6 +131,7 @@ def get_source_list(project_folder:Path, extensions:tuple[str,...]) -> list[Path
     return source_file_list
 
 def replace_originals(to_move_list:list[tuple[Path,Path]]):
+    print("- Reemplazando los archivos más pesados")
     exception_list:list[dict[str,Exception]] = []
     for file_pair in tqdm(to_move_list,
                           desc="Reemplazando archivos",
@@ -151,7 +153,7 @@ def delete_encrypted_files(project_folder:Path):
     for root, _, files in project_folder.walk():
         for file in files:
             if file.lower().endswith(bcfg.get_encrypted_extensions()):
-                file_path = root/file
+                file_path: Path = root/file
                 try:
                     file_path.unlink(missing_ok=True)
                 except Exception as e:
