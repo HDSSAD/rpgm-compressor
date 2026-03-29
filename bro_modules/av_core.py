@@ -1,5 +1,4 @@
 import subprocess, os
-import mutagen
 import ffmpeg # type: ignore
 from tqdm import tqdm
 from pathlib import Path
@@ -11,8 +10,8 @@ from bro_modules import config as bcfg
 def process_videos(project_folder:Path, quality:int = 600, plus:int|float = 1.15):
     """ Inicia el procesamiento en paralelo de videos dentro de project_folder\n
     """
-    print("=== Preparando archivos de videos ===")
-    source_list = bfm.get_source_list(project_folder, bcfg.get_video_extensions())
+    print("- Preparando archivos de videos")
+    source_list: list[Path] = bfm.get_source_list(project_folder, bcfg.get_video_extensions())
     if not source_list:
         print("[!] No hay archivos de video que procesar")
         return
@@ -26,12 +25,12 @@ def process_videos(project_folder:Path, quality:int = 600, plus:int|float = 1.15
     to_mark_list:list[Path] = []
     to_move_list:list[tuple[Path,Path]] = []
 
-    print("=== Iniciando procesamiento de videos ===")
+    print("- Iniciando procesamiento de videos")
     # Limitación a 1 hilo para convertir videos debido a que el procesamiento de videos es más pesado
     with ThreadPoolExecutor(max_workers=1) as executor:
         futures = {executor.submit(compress_video, project_folder, quality, plus, source) for source in to_process_list}
         for future in tqdm(as_completed(futures), desc="Comprimiendo videos", total=len(futures)):
-            result = future.result()
+            result: tuple[Path, Path] | None = future.result()
             if result:
                 source, compressed = result
                 if source.stat().st_size > compressed.stat().st_size:
@@ -44,19 +43,18 @@ def process_videos(project_folder:Path, quality:int = 600, plus:int|float = 1.15
                     to_mark_list.append(smaller_file)
 
     if to_mark_list:
-        print("=== Marcando los videos originales de menor peso ===")
+        print("- Marcando los videos originales de menor peso")
         mark_files(to_mark_list)
 
-    if to_move_list:
-        print("=== Reemplazando los videos más pesados ===")
-        bfm.replace_originals(to_move_list)
+    return to_move_list
+        
 # END of function process_videos()
 
-def process_audios(project_folder:Path):
+def process_audios(project_folder:Path) -> list[tuple[Path,Path]]|None:
     """ Inicia el procesamiento en paralelo de audios dentro de project_folder\n
     """
-    print("=== Preparando archivos de audio ===")
-    source_list = bfm.get_source_list(project_folder, bcfg.get_audio_extensions())
+    print("- Preparando archivos de audio")
+    source_list: list[Path] = bfm.get_source_list(project_folder, bcfg.get_audio_extensions())
     if not source_list:
         print("[!] No hay archivos de audio que procesar")
         return
@@ -70,30 +68,28 @@ def process_audios(project_folder:Path):
     to_mark_list:list[Path] = []
     to_move_list:list[tuple[Path,Path]] = []
 
-    print("=== Iniciando procesamiento de audios ===")
+    print("- Iniciando procesamiento de audios")
     with ThreadPoolExecutor(bsys.get_cpu_threads()) as executor:
         futures = {executor.submit(compress_audio, project_folder, source)
                 for source in to_process_list}
         for future in tqdm(as_completed(futures), desc="Comprimiendo audios", total=len(futures)):
-            result = future.result()
+            result: tuple[Path, Path] | None = future.result()
             if result:
                 source, compressed = result
                 if source.stat().st_size > compressed.stat().st_size:
-                    smaller_file = compressed
+                    smaller_file: Path = compressed
                 else:
-                    smaller_file = source
+                    smaller_file: Path = source
                 if smaller_file != source:
                     to_move_list.append((smaller_file, source))
                 else:
                     to_mark_list.append(source)
     
     if to_mark_list:
-        print("=== Marcando los audios originales de menor peso ===")
+        print("- Marcando los audios originales de menor peso")
         mark_files(to_mark_list)
 
-    if to_move_list:
-        print("=== Reemplazando los audios más pesados ===")
-        bfm.replace_originals(to_move_list)
+    return to_move_list
 # END of function process_audios()
 
 def get_to_process_list(source_list:list[Path]) -> list[Path]:
@@ -104,7 +100,7 @@ def get_to_process_list(source_list:list[Path]) -> list[Path]:
         for future in tqdm(as_completed(futures),
                         desc="Listando archivos",
                         total=len(futures)):
-            result = future.result()
+            result: Path | None = future.result()
             if result:
                 to_process_list.append(result)
     return to_process_list
@@ -112,29 +108,18 @@ def get_to_process_list(source_list:list[Path]) -> list[Path]:
 def get_unoptimized(file:Path) -> Path|None:
     if not file.exists():
         return None
+    try:
+        metadata = ffmpeg.probe(file) # type: ignore
+        if bcfg.get_custom_mark() not in str(metadata):
+            return file
+        return None
+    except Exception as e:
+        print("ERROR, get_unoptimized, ffprobe\n", e)
+        return None
+    # end try
 
-    if file.suffix in bcfg.get_video_extensions():
-        try:
-            metadata = ffmpeg.probe(file) # type: ignore
-            if bcfg.get_custom_mark() not in str(metadata):
-                return file
-            return None
-        except Exception as e:
-            print("ERROR, get_unoptimized, ffprobe\n", e)
-            return None
-        # end try
-    elif file.suffix in bcfg.get_audio_extensions():
-        try:
-            audio:dict[str,list[str]] = mutagen.File(file) # type: ignore
-            if bcfg.get_custom_mark() not in str(audio):
-                return file
-            return None
-        except Exception as e:
-            print("ERROR, get_unoptimized, mutagen.File\n", e)
-            return None
-    
 def mark_files(to_mark_list:list[Path]):
-    max_threads = bsys.get_cpu_threads()
+    max_threads: int = bsys.get_cpu_threads()
     with ThreadPoolExecutor(max_threads) as executor:
         futures = {executor.submit(mark_as_optimized, file) 
                     for file in to_mark_list}
@@ -146,8 +131,8 @@ def mark_files(to_mark_list:list[Path]):
 def mark_as_optimized(file:Path) -> bool:
     """ Copia el flujo de datos (sin recodificar) y añade el tag BROPTIMIZADO.
     """
-    mark = bcfg.get_custom_mark()
-    output = file.with_stem(f"{file.stem}_broptimized")
+    mark: str = bcfg.get_custom_mark()
+    output: Path = file.with_stem(f"{file.stem}_broptimized")
 
     cmd:list[str] = [
         "ffmpeg", "-hide_banner", "-v", "quiet",
@@ -174,9 +159,9 @@ def compress_video(project_folder:Path, quality:int, plus:int|float, source:Path
     if not source.exists():
         return None
     
-    mark = bcfg.get_custom_mark()
-    rel_source = source.relative_to(project_folder)
-    output = bfm.get_compressed_folder(project_folder)/rel_source.with_suffix(".mp4")
+    mark: str = bcfg.get_custom_mark()
+    rel_source: Path = source.relative_to(project_folder)
+    output: Path = bfm.get_compressed_folder(project_folder)/rel_source.with_suffix(".mp4")
     target_res, video_bitrate, vf_scale = optimal_video_quality(source, quality, plus)
 
     if min(target_res, video_bitrate) == 0 or vf_scale == "":
@@ -184,11 +169,11 @@ def compress_video(project_folder:Path, quality:int, plus:int|float, source:Path
     
     audio_bitrate = "48"
     audio_codec = "libopus"
-    extra = ["-pix_fmt", "yuv420p", "-ar", "48000", "-tune", "animation"]
+    extra: list[str] = ["-pix_fmt", "yuv420p", "-ar", "48000", "-tune", "animation"]
     video_codec = "libx264"
 
     passlog = "ffmpeg_pass_temp"
-    null = "NUL" if os.name == "nt" else "/dev/null"
+    null:str = "NUL" if os.name == "nt" else "/dev/null"
 
     cmd1:list[str] = [
         "ffmpeg", "-hide_banner", "-v", "quiet",
@@ -249,11 +234,11 @@ def compress_audio(project_folder:Path, source:Path) -> tuple[Path, Path]|None:
     if not source.exists():
         return None
     
-    mark = bcfg.get_custom_mark()
-    rel_source = source.relative_to(project_folder)
-    output = bfm.get_compressed_folder(project_folder)/rel_source
+    mark: str = bcfg.get_custom_mark()
+    rel_source: Path = source.relative_to(project_folder)
+    output: Path = bfm.get_compressed_folder(project_folder)/rel_source
     output = output.with_suffix(".ogg")
-    hz = get_audio_hz(source)
+    hz: int = get_audio_hz(source)
     if 22050 <= hz < 32000:
         hz = 22050
     else:
@@ -303,9 +288,9 @@ def optimal_video_quality(source:Path, quality:int, plus:int|float) -> tuple[int
     
     target_res:int = min(original_res, quality)
     if width > height:
-        vf_scale = f"-2:{target_res}"
+        vf_scale: str = f"-2:{target_res}"
     else:
-        vf_scale = f"{target_res}:-2"
+        vf_scale: str = f"{target_res}:-2"
 
     original_kbps:int = get_video_kbps(source)
     target_optimal_kbps:int = optimal_kbps_for_resolution(target_res, plus)
@@ -327,7 +312,7 @@ def optimal_video_quality(source:Path, quality:int, plus:int|float) -> tuple[int
             return target_res, int(target_optimal_kbps*ratio), vf_scale
 # END of function optimal_video_quality()
 
-def get_video_kbps(video_path:Path) -> int:
+def get_video_kbps(file:Path) -> int:
     metadata = ffmpeg.probe(str(file)) # type: ignore
     if "bit_rate" in metadata:
         try:
@@ -342,13 +327,13 @@ def get_video_kbps(video_path:Path) -> int:
 def optimal_kbps_for_resolution(quality:int, plus:float|int = 1.15) -> int:
     return int(((quality ** 2 / 180)  - (15/4) * quality + 1020)*plus)
 
-def get_video_resolution(video_path:Path) -> tuple[int, int]:
+def get_video_resolution(file:Path) -> tuple[int, int]:
     """
     Obtiene la resolución de un video usando ffprobe.
     Retorna ancho y alto si se completó con éxito, None si algo falló.
     """
     try:
-        metadata = ffmpeg.probe(str(video_path)) # type: ignore
+        metadata = ffmpeg.probe(str(file)) # type: ignore
         width = int(metadata.get("streams")[0].get("width", 0))
         height = int(metadata.get("streams")[0].get("height", 0))
         if width == 0 or height == 0:
